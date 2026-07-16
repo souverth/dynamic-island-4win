@@ -1,5 +1,9 @@
 # Dynamic Island for Windows
 
+[![Latest release](https://img.shields.io/github/v/release/souverth/dynamic-island-4win)](https://github.com/souverth/dynamic-island-4win/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/souverth/dynamic-island-4win/total)](https://github.com/souverth/dynamic-island-4win/releases)
+[![License: GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
+
 A minimal, fluid, and premium desktop widget inspired by iOS Dynamic Island, rebuilt natively for Windows 10 and 11 using **Tauri**, **React**, **TypeScript**, and **Rust**.
 
 Designed with **strict flat gray/white aesthetics, micro-animations, and custom WinRT event loops**, Vibe Island seamlessly floats on top of your workspace, adapting to your system status.
@@ -77,3 +81,10 @@ Dynamic Island (Vibe Island) là một tiện ích màn hình nền (desktop wid
 4. **Hòm lưu trữ kéo thả**: Kéo file trực tiếp thả vào Island để lưu nhanh.
 5. **Cài đặt tiện lợi**: Chạy cùng Windows, đổi tốc độ hiệu ứng, tuỳ chỉnh màn hình hiển thị.
 6. **Đồng bộ đa ngôn ngữ**: i18n Anh / Việt linh hoạt.
+
+---
+
+## License
+
+GPLv3 - see [LICENSE](LICENSE).
+
