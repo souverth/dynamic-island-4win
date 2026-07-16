@@ -1247,9 +1247,13 @@ fn get_available_monitors(window: tauri::WebviewWindow) -> Result<Vec<MonitorInf
 #[tauri::command]
 fn reposition_to_monitor(window: tauri::WebviewWindow, monitor_name: String) -> Result<(), String> {
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
-    let target = monitors
-        .into_iter()
-        .find(|m| m.name().map(|n| n == &monitor_name).unwrap_or(false));
+    let target = if monitor_name.is_empty() {
+        window.primary_monitor().ok().flatten()
+    } else {
+        monitors
+            .into_iter()
+            .find(|m| m.name().map(|n| n == &monitor_name).unwrap_or(false))
+    };
 
     if let Some(target_monitor) = target {
         let monitor_size = target_monitor.size();

@@ -82,7 +82,9 @@
     "notifSoundToggle": "Notification sound",
     "notifCapturing": "Listening for Windows notifications...",
     "notifFocusApp": "Focus App",
-    "notifActionDelete": "Delete"
+    "notifActionDelete": "Delete",
+    "offsetAlignment": "Offset alignment?",
+    "resetPosition": "Reset Position"
   },
   "vi": {
     "previous": "Bài trước",
@@ -167,6 +169,8 @@
     "notifSoundToggle": "Âm thanh thông báo",
     "notifCapturing": "Đang theo dõi thông báo Windows...",
     "notifFocusApp": "Mở ứng dụng",
-    "notifActionDelete": "Xóa"
+    "notifActionDelete": "Xóa",
+    "offsetAlignment": "Lệch vị trí?",
+    "resetPosition": "Đặt lại vị trí"
   }
 }

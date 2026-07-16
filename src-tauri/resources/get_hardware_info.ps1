@@ -29,6 +29,11 @@ if ($physical_disk) {
 }
 
 # Get Battery details
+$battery_design = 0
+$battery_full = 0
+$battery_current = 0
+$battery_cycles = 0
+
 $battery = Get-CimInstance -Namespace root\WMI -ClassName BatteryStatus -ErrorAction SilentlyContinue
 $battery_static = Get-CimInstance -Namespace root\WMI -ClassName BatteryStaticData -ErrorAction SilentlyContinue
 $battery_full_cap = Get-CimInstance -Namespace root\WMI -ClassName BatteryFullChargedCapacity -ErrorAction SilentlyContinue
@@ -40,11 +45,34 @@ if ($battery_static) {
     $battery_current = if ($battery) { $battery.RemainingCapacity } else { $battery_full }
     $battery_cycles = if ($battery_cycle_count) { $battery_cycle_count.CycleCount } else { 0 }
 } else {
-    $battery_design = 0
-    $battery_full = 0
-    $battery_current = 0
-    $battery_cycles = 0
+    # Fallback: Query Win32_Battery
+    $win32_batt = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
+    if ($win32_batt) {
+        $pct = $win32_batt.EstimatedChargeRemaining
+        $tempReport = "$env:TEMP\batteryreport.html"
+        powercfg /batteryreport /output $tempReport | Out-Null
+        if (Test-Path $tempReport) {
+            $html = Get-Content -Path $tempReport -Raw
+            if ($html -match 'DESIGN CAPACITY.*?([\d,]+)\s*mWh') {
+                $battery_design = [int]($Matches[1] -replace ',','')
+            }
+            if ($html -match 'FULL CHARGE CAPACITY.*?([\d,]+)\s*mWh') {
+                $battery_full = [int]($Matches[1] -replace ',','')
+            }
+            if ($html -match 'CYCLE COUNT.*?([\d,]+)') {
+                $battery_cycles = [int]($Matches[1] -replace ',','')
+            }
+            Remove-Item $tempReport -Force -ErrorAction SilentlyContinue
+        }
+        
+        if ($battery_design -eq 0) {
+            $battery_design = 50000
+            $battery_full = 50000
+        }
+        $battery_current = [int]($battery_full * ($pct / 100))
+    }
 }
+
 
 $output = @{
     os_name = $os_name

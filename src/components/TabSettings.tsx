@@ -216,6 +216,28 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ settings, onSettingsCh
         </div>
       </div>
 
+      {/* 7. RESET POSITION */}
+      <div className="flex items-center justify-between py-2.5">
+        <span className="font-medium text-white/50">
+          {t.offsetAlignment}
+        </span>
+        <button
+          onClick={async () => {
+            const isTauri = !!(window as any).__TAURI__;
+            if (isTauri) {
+              try {
+                await invoke('reposition_to_monitor', { monitorName: settings.selectedMonitor });
+              } catch (e) {
+                console.error('Failed to reset position:', e);
+              }
+            }
+          }}
+          className="px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 transition-all text-[10.5px] font-bold uppercase tracking-wider"
+        >
+          {t.resetPosition}
+        </button>
+      </div>
+
     </div>
   );
 };
