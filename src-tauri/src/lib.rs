@@ -1001,7 +1001,14 @@ async fn get_hardware_info() -> Result<String, String> {
             .cloned()
             .unwrap_or_else(|| script_candidates[1].clone());
 
-        let output = Command::new("powershell")
+        #[cfg(target_os = "windows")]
+        use std::os::windows::process::CommandExt;
+
+        let mut cmd = Command::new("powershell");
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+        let output = cmd
             .args(&[
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -1046,7 +1053,14 @@ fn start_bluetooth_listener(app_handle: tauri::AppHandle) {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(3));
             
-            let output = Command::new("powershell")
+            #[cfg(target_os = "windows")]
+            use std::os::windows::process::CommandExt;
+
+            let mut cmd = Command::new("powershell");
+            #[cfg(target_os = "windows")]
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+            let output = cmd
                 .args(&[
                     "-NoProfile",
                     "-Command",
