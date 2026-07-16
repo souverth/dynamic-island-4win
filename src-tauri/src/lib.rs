@@ -1166,10 +1166,20 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 let mut pt = POINT { x: 0, y: 0 };
                 unsafe { GetCursorPos(&mut pt) };
 
-                // Activation zone: top center area (y <= 12, x is in the center 440px of screen)
-                let in_activation_zone = pt.y <= 12 && (pt.x - (screen_width / 2)).abs() < 220;
-                // Keep zone: remain visible until mouse leaves y > 50
-                let in_keep_zone = pt.y <= 50 && (pt.x - (screen_width / 2)).abs() < 250;
+                let win_pos = window.outer_position().unwrap_or_default();
+                let win_size = window.outer_size().unwrap_or_default();
+                let scale_factor = window.scale_factor().unwrap_or(1.0);
+                let center_x = win_pos.x + (win_size.width as i32) / 2;
+
+                // Activation zone: relative to window's physical position
+                let in_activation_zone = pt.y >= win_pos.y 
+                    && pt.y <= win_pos.y + (12.0 * scale_factor) as i32 
+                    && (pt.x - center_x).abs() < (220.0 * scale_factor) as i32;
+                
+                // Keep zone: relative to window's physical position
+                let in_keep_zone = pt.y >= win_pos.y 
+                    && pt.y <= win_pos.y + (50.0 * scale_factor) as i32 
+                    && (pt.x - center_x).abs() < (250.0 * scale_factor) as i32;
 
                 if is_hidden {
                     if in_activation_zone {
@@ -1189,24 +1199,30 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 }
             }
 
-            // ── CLICK-THROUGH OPTIMIZATION FOR COMPACT ISLAND ──
+            // ── CLICK-THROUGH OPTIMIZATION FOR COMPACT & EXPANDED ISLAND ──
             if !is_hidden {
                 let size = window.outer_size().unwrap_or_default();
                 let mut pt = POINT { x: 0, y: 0 };
                 unsafe { GetCursorPos(&mut pt) };
 
-                if size.height > 50 {
-                    // When expanded, accept cursor events normally
-                    let _ = window.set_ignore_cursor_events(false);
+                let scale_factor = window.scale_factor().unwrap_or(1.0);
+                let win_pos = window.outer_position().unwrap_or_default();
+                let center_x = win_pos.x + (size.width as i32) / 2;
+
+                if size.height > ((50.0 * scale_factor) as u32) {
+                    // Expanded state: only accept cursor events inside the center 460px card (230px radius)
+                    let in_expanded_rect = pt.y >= win_pos.y 
+                        && pt.y <= win_pos.y + (size.height as i32)
+                        && (pt.x - center_x).abs() <= ((230.0 * scale_factor) as i32);
+                    
+                    let _ = window.set_ignore_cursor_events(!in_expanded_rect);
                 } else {
-                    // When compact, only accept cursor events on the active Island area (center of screen, width ~220px)
-                    let in_island_rect = pt.y <= 38 && (pt.x - (screen_width / 2)).abs() <= 110;
-                    if in_island_rect {
-                        let _ = window.set_ignore_cursor_events(false);
-                    } else {
-                        // Ignore cursor events in transparent regions so user can click Firefox tabs!
-                        let _ = window.set_ignore_cursor_events(true);
-                    }
+                    // Compact state: only accept cursor events on the active Island area (center of window, width ~220px)
+                    let in_island_rect = pt.y >= win_pos.y
+                        && pt.y <= win_pos.y + ((38.0 + 12.0) * scale_factor) as i32
+                        && (pt.x - center_x).abs() <= ((110.0 * scale_factor) as i32);
+                    
+                    let _ = window.set_ignore_cursor_events(!in_island_rect);
                 }
             }
         }
