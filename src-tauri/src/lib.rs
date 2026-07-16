@@ -1,3 +1,9 @@
+// Copyright (C) 2026 Nguyễn Trọng Kiên
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License.
+
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
