@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, Trash2, Volume2, VolumeX, ExternalLink, Check, Inbox } from 'lucide-react';
+import { Trash2, Volume2, VolumeX, Check, Inbox } from 'lucide-react';
 import { getTranslation, Language } from '../utils/i18n';
 import { getAppIcon } from '../utils/appIcons';
 
@@ -25,7 +25,7 @@ interface TabNotificationsProps {
 
 export const TabNotifications: React.FC<TabNotificationsProps> = ({
   history,
-  onDelete,
+  onDelete: _onDelete,
   onClearAll,
   onMarkAsRead,
   onMarkAllAsRead,
@@ -43,7 +43,7 @@ export const TabNotifications: React.FC<TabNotificationsProps> = ({
   const displayedList = filter === 'unread' ? unreadList : history;
 
   // Click thẻ: Đánh dấu đã đọc và kích hoạt Rust focus app tương ứng | Click card: Mark as read and invoke Rust to focus the target app
-  const handleCardClick = async (e: React.MouseEvent, notif: StoredNotification) => {
+  const handleCardClick = async (notif: StoredNotification) => {
     onMarkAsRead(notif.id);
     
     if ((window as any).__TAURI__) {
@@ -156,7 +156,7 @@ export const TabNotifications: React.FC<TabNotificationsProps> = ({
             {displayedList.map((notif) => (
               <div
                 key={notif.id}
-                onClick={(e) => handleCardClick(e, notif)}
+                onClick={() => handleCardClick(notif)}
                 className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-all duration-200 cursor-pointer border
                   ${!notif.read
                     ? 'bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05] hover:border-white/[0.12]'

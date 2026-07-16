@@ -1,7 +1,6 @@
-import React from 'react';
 import { 
-  Music, Globe, Send, Gamepad2, FileText, Code, 
-  Scissors, Settings, Bell, MessageSquare, Terminal, AlertCircle 
+  Music, Globe, Send, Gamepad2, FileText, 
+  Scissors, Settings, MessageSquare, Terminal 
 } from 'lucide-react';
 
 export const getAppIcon = (appName: string, size = 16) => {
