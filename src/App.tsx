@@ -553,6 +553,13 @@ export const App: React.FC = () => {
     }
   }, [isExpanded]);
 
+  const getDynamicMusicWidth = () => {
+    if (!track.title || track.title === 'Ready') return 190;
+    const textWidth = track.title.length * 8.6;
+    return Math.max(190, Math.min(600, Math.ceil(textWidth + 96)));
+  };
+
+
   // Đồng bộ mọi logic kích thước và tọa độ định vị của Tauri | Consolidate Tauri window sizing and positioning logic dynamically
   useEffect(() => {
     const isTauri = !!(window as any).__TAURI__;
@@ -589,7 +596,7 @@ export const App: React.FC = () => {
           const logicalMonitorSize = monitorSize.toLogical(scaleFactor);
 
           const x = (logicalMonitorSize.width - targetWidth) / 2.0;
-          const y = 0.0;
+          const y = -12.0;
 
           await win.setPosition(new LogicalPosition(x, y));
         }
@@ -600,6 +607,41 @@ export const App: React.FC = () => {
 
     updateWindowSizeAndPosition();
   }, [isExpanded, contentHeight, isHovered, displaySlot, settings.expandedWidth, track.title, windowHeightOverride]);
+
+  // Đồng bộ chiều rộng active của island lên backend để tối ưu hóa click-through | Sync the active width of the island to backend to optimize transparent click-through accuracy
+  useEffect(() => {
+    const isTauri = !!(window as any).__TAURI__;
+    if (isTauri) {
+      const getActiveIslandWidth = () => {
+        if (isExpanded) return settings.expandedWidth;
+        if (isDragOver) return isHovered ? 170 : 150;
+
+        switch (displaySlot) {
+          case 'music':
+            return isHovered ? getDynamicMusicWidth() : 175;
+          case 'system-notification':
+            return isHovered ? 260 : 240;
+          case 'pomo':
+          case 'tasks':
+          case 'files':
+          case 'battery':
+            return isHovered ? 130 : 100;
+          case 'idle':
+          default:
+            const unreadCount = notifHistory.filter((n) => !n.read).length;
+            if (unreadCount > 0) {
+              return isHovered ? 150 : 130;
+            }
+            return isHovered ? 130 : 110;
+        }
+      };
+
+      const width = getActiveIslandWidth();
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('update_island_width', { width }).catch(() => {});
+      });
+    }
+  }, [isExpanded, isHovered, displaySlot, isDragOver, settings.expandedWidth, track.title, notifHistory]);
 
   // Đồng bộ khe hiển thị khi nhạc bắt đầu phát hoặc dừng | Sync compact slot when music starts/stops
   useEffect(() => {
@@ -679,11 +721,7 @@ export const App: React.FC = () => {
     }
   };
 
-    const getDynamicMusicWidth = () => {
-    if (!track.title || track.title === 'Ready') return 190;
-    const textWidth = track.title.length * 8.6;
-    return Math.max(190, Math.min(600, Math.ceil(textWidth + 96)));
-  };
+
 
   return (
     <div className="w-full h-full flex justify-center items-start bg-transparent select-none island-container">

@@ -1209,21 +1209,19 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 let win_pos = window.outer_position().unwrap_or_default();
                 let center_x = win_pos.x + (size.width as i32) / 2;
 
-                if size.height > ((50.0 * scale_factor) as u32) {
-                    // Expanded state: only accept cursor events inside the center 460px card (230px radius)
-                    let in_expanded_rect = pt.y >= win_pos.y 
-                        && pt.y <= win_pos.y + (size.height as i32)
-                        && (pt.x - center_x).abs() <= ((230.0 * scale_factor) as i32);
-                    
-                    let _ = window.set_ignore_cursor_events(!in_expanded_rect);
+                let active_width = ACTIVE_ISLAND_WIDTH.load(std::sync::atomic::Ordering::Relaxed) as f64;
+                let is_expanded = size.height > ((50.0 * scale_factor) as u32);
+                let active_height = if is_expanded {
+                    size.height as f64
                 } else {
-                    // Compact state: only accept cursor events on the active Island area (center of window, width ~220px)
-                    let in_island_rect = pt.y >= win_pos.y
-                        && pt.y <= win_pos.y + ((38.0 + 12.0) * scale_factor) as i32
-                        && (pt.x - center_x).abs() <= ((110.0 * scale_factor) as i32);
-                    
-                    let _ = window.set_ignore_cursor_events(!in_island_rect);
-                }
+                    (38.0 + 12.0) * scale_factor
+                };
+
+                let in_island_rect = pt.y >= win_pos.y
+                    && pt.y <= win_pos.y + active_height as i32
+                    && (pt.x - center_x).abs() <= ((active_width / 2.0) * scale_factor) as i32;
+
+                let _ = window.set_ignore_cursor_events(!in_island_rect);
             }
         }
     });
@@ -1433,6 +1431,13 @@ fn focus_window_by_name(name: String) {
     }
 }
 
+static ACTIVE_ISLAND_WIDTH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(110);
+
+#[tauri::command]
+fn update_island_width(width: u32) {
+    ACTIVE_ISLAND_WIDTH.store(width, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1500,7 +1505,8 @@ pub fn run() {
             get_hardware_info,
             get_available_monitors,
             reposition_to_monitor,
-            focus_window_by_name
+            focus_window_by_name,
+            update_island_width
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
