@@ -1,0 +1,302 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background-color: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color-scheme: dark;
+  }
+  #root {
+    width: 100%;
+    height: 100%;
+    background-color: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color-scheme: dark;
+  }
+  button, button:focus, button:focus-visible, button:active {
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom styles for floating island */
+.island-container {
+  padding-top: 12px;
+}
+
+.island-notch::before,
+.island-notch::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  background: transparent;
+  pointer-events: none;
+  transition: all var(--anim-speed, 0.4s) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.island-notch::before {
+  left: -12px;
+  background: radial-gradient(circle at bottom left, transparent 12px, #09090b 12px);
+}
+
+.island-notch::after {
+  right: -12px;
+  background: radial-gradient(circle at bottom right, transparent 12px, #09090b 12px);
+}
+
+/* Custom Scrollbar for Notes */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* Music Visualizer Animation */
+.visualizer-playing .bar-1 { animation: bounce 0.8s ease-in-out infinite alternate; }
+.visualizer-playing .bar-2 { animation: bounce 1.1s ease-in-out infinite alternate; }
+.visualizer-playing .bar-3 { animation: bounce 0.9s ease-in-out infinite alternate; }
+.visualizer-playing .bar-4 { animation: bounce 1.3s ease-in-out infinite alternate; }
+.visualizer-playing .bar-5 { animation: bounce 0.7s ease-in-out infinite alternate; }
+
+@keyframes bounce {
+  10% { height: 4px; }
+  100% { height: 16px; }
+}
+
+/* Compact Music Visualizer */
+.compact-visualizer-playing .sb1 { animation: compact-bounce-1 0.7s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate; transform-origin: center; }
+.compact-visualizer-playing .sb2 { animation: compact-bounce-2 0.5s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate; transform-origin: center; }
+.compact-visualizer-playing .sb3 { animation: compact-bounce-3 0.6s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate; transform-origin: center; }
+.compact-visualizer-playing .sb4 { animation: compact-bounce-2 0.45s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate; transform-origin: center; }
+.compact-visualizer-playing .sb5 { animation: compact-bounce-1 0.55s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate; transform-origin: center; }
+
+@keyframes compact-bounce-1 {
+  0% { transform: scaleY(0.2); }
+  100% { transform: scaleY(0.7); }
+}
+@keyframes compact-bounce-2 {
+  0% { transform: scaleY(0.3); }
+  100% { transform: scaleY(1.0); }
+}
+@keyframes compact-bounce-3 {
+  0% { transform: scaleY(0.25); }
+  100% { transform: scaleY(1.0); }
+}
+
+/* Morphing Content Reveal Animations */
+@keyframes contentReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-content-reveal {
+  animation: contentReveal calc(var(--anim-speed, 0.4s) * 0.7) cubic-bezier(0.16, 1, 0.3, 1) calc(var(--anim-speed, 0.4s) * 0.25) both;
+}
+
+@keyframes compactReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-compact-reveal {
+  animation: compactReveal calc(var(--anim-speed, 0.4s) * 0.6) cubic-bezier(0.16, 1, 0.3, 1) calc(var(--anim-speed, 0.4s) * 0.15) both;
+}
+
+/* ── Drag & Drop: Compact island icon ─────────────────────── */
+@keyframes dragIconBounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-2px); }
+}
+.drag-icon-bounce {
+  animation: dragIconBounce 1s ease-in-out infinite;
+}
+
+/* ── Drag & Drop: Island active glow border ───────────────── */
+@keyframes islandDragPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+  50%       { box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12); }
+}
+.island-drag-active {
+  animation: islandDragPulse 1.6s ease-in-out infinite;
+  border-color: rgba(34, 211, 238, 0.25) !important;
+}
+
+/* ── Drag & Drop: Fullscreen corner brackets ──────────────── */
+.drag-overlay-root {
+  background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.03) 0%, transparent 70%);
+  animation: dragOverlayFadeIn 0.2s ease-out both;
+}
+@keyframes dragOverlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.drag-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: rgba(34, 211, 238, 0.35);
+  border-style: solid;
+  animation: dragCornerPulse 1.8s ease-in-out infinite;
+}
+@keyframes dragCornerPulse {
+  0%, 100% { border-color: rgba(34, 211, 238, 0.3); }
+  50%       { border-color: rgba(34, 211, 238, 0.65); }
+}
+.drag-corner-tl { top: 10px;    left: 10px;    border-width: 2px 0 0 2px; border-radius: 3px 0 0 0; }
+.drag-corner-tr { top: 10px;    right: 10px;   border-width: 2px 2px 0 0; border-radius: 0 3px 0 0; }
+.drag-corner-bl { bottom: 10px; left: 10px;    border-width: 0 0 2px 2px; border-radius: 0 0 0 3px; }
+.drag-corner-br { bottom: 10px; right: 10px;   border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
+
+/* ── Drag & Drop: TabDrop overlay scan line ───────────────── */
+.drop-zone-scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.5), transparent);
+  animation: dropScanLine 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes dropScanLine {
+  0%   { top: 10%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 90%; opacity: 0; }
+}
+
+/* ── Drag & Drop: File card drop-in animation ─────────────── */
+@keyframes fileDropIn {
+  0%   { opacity: 0; transform: scale(0.88) translateY(-6px); }
+  70%  { transform: scale(1.04) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.file-drop-in {
+  animation: fileDropIn 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* ── Music tab: play button pulse ring ────────────────────── */
+@keyframes musicPulseRing {
+  0%   { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.08); }
+}
+.music-pulse-ring {
+  animation: musicPulseRing 2s ease-out infinite;
+}
+
+/* ── Battery: charging sweep animation (Simplified) ──────── */
+.battery-charge-sweep {
+  display: none !important;
+}
+
+/* ── Battery: glow pulse behind icon when charging (Disabled) ── */
+.battery-charge-glow {
+  display: none !important;
+}
+
+/* ── Battery: lightning bolt pop-in & breathe (Static Apple Style) ── */
+.battery-bolt-pop {
+  /* Completely static, no scaling or drop-shadows */
+  transform: none !important;
+  filter: none !important;
+}
+
+/* ── Battery: level % subtle pulse when charging (Disabled) ── */
+.battery-level-pulse {
+  animation: none !important;
+  opacity: 1 !important;
+}
+
+
+/* ── Notification slot: slide up + fade in ───────────────── */
+@keyframes notifSlotEnter {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.9); }
+  65%  { transform: translateY(-1.5px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.notif-slot-enter {
+  animation: notifSlotEnter 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Island Squishy Alert bounce ───────────────────────── */
+@keyframes islandAlert {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.06, 0.92); } /* Squeeze down and widen */
+  30% { transform: scale(0.94, 1.08) translateY(-4px); } /* Bounce up and stretch */
+  45% { transform: scale(1.02, 0.98) translateY(0.5px); } /* Settle down slightly */
+  65% { transform: scale(0.99, 1.01); }
+  100% { transform: scale(1); }
+}
+.animate-island-alert {
+  animation: islandAlert 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* ── Battery: inline charging group enter animation ──────── */
+@keyframes batteryChargeInlineEnter {
+  from { opacity: 0; transform: scale(0.92) translateX(-4px); }
+  to   { opacity: 1; transform: scale(1) translateX(0); }
+}
+.battery-charge-inline-enter {
+  animation: batteryChargeInlineEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Matrix: Led Dot Matrix Circular Loading ────────────── */
+@keyframes matrixDotFade {
+  0%, 100% {
+    opacity: 0.1;
+    transform: scale(0.75);
+    background-color: rgba(16, 185, 129, 0.2);
+    box-shadow: none;
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.2);
+    background-color: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.8), 0 0 12px rgba(16, 185, 129, 0.4);
+  }
+  40% {
+    opacity: 0.35;
+    transform: scale(1);
+    background-color: rgba(16, 185, 129, 0.4);
+  }
+}
+.matrix-dot-animation {
+  animation: matrixDotFade 1.2s infinite linear;
+}
+

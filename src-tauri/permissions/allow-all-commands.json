@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/permission-schema.json",
+  "identifier": "allow-all-commands",
+  "description": "Allows calling all custom commands in this application",
+  "commands": {
+    "allow": [
+      "respond_event",
+      "open_file"
+    ]
+  }
+}
