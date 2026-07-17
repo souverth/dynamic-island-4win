@@ -1041,55 +1041,64 @@ fn delete_stashed_file(path: String) -> Result<(), String> {
 
 fn start_bluetooth_listener(app_handle: tauri::AppHandle) {
     std::thread::spawn(move || {
-        use std::process::Command;
         use std::collections::HashSet;
-        
-        let mut last_devices: HashSet<String> = HashSet::new();
-        let mut is_first_run = true;
+        use windows::Devices::Bluetooth::{BluetoothDevice, BluetoothConnectionStatus};
+        use windows::Devices::Enumeration::DeviceInformation;
 
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(3));
-            
-            #[cfg(target_os = "windows")]
-            use std::os::windows::process::CommandExt;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
 
-            let mut cmd = Command::new("powershell");
-            #[cfg(target_os = "windows")]
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        rt.block_on(async {
+            let mut last_devices: HashSet<String> = HashSet::new();
+            let mut is_first_run = true;
 
-            let output = cmd
-                .args(&[
-                    "-NoProfile",
-                    "-Command",
-                    "Get-PnpDevice -Class Bluetooth -Status OK | Where-Object { $_.InstanceId -match 'BTH(ENUM|LE)\\\\DEV_' } | Select-Object -ExpandProperty FriendlyName"
-                ])
-                .output();
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                
+                let mut current_devices = HashSet::new();
 
-            if let Ok(out) = output {
-                if out.status.success() {
-                    let stdout = String::from_utf8_lossy(&out.stdout);
-                    let current_devices: HashSet<String> = stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect();
-
-                    if !is_first_run {
-                        // Emit event for new connections
-                        for device in current_devices.difference(&last_devices) {
-                            let _ = app_handle.emit("bluetooth-connected", device.clone());
+                if let Ok(selector) = BluetoothDevice::GetDeviceSelector() {
+                    if let Ok(op) = DeviceInformation::FindAllAsyncAqsFilter(&selector) {
+                        if let Ok(devices) = op.await {
+                            for device in devices {
+                                if let Ok(id) = device.Id() {
+                                    if let Ok(op_dev) = BluetoothDevice::FromIdAsync(&id) {
+                                        if let Ok(bt_device) = op_dev.await {
+                                            if let Ok(status) = bt_device.ConnectionStatus() {
+                                                if status == BluetoothConnectionStatus::Connected {
+                                                    if let Ok(name) = bt_device.Name() {
+                                                        let name_str = name.to_string();
+                                                        if !name_str.is_empty() {
+                                                            current_devices.insert(name_str);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        // Emit event for disconnections
-                        for device in last_devices.difference(&current_devices) {
-                            let _ = app_handle.emit("bluetooth-disconnected", device.clone());
-                        }
-                    } else {
-                        is_first_run = false;
                     }
-                    last_devices = current_devices;
                 }
+
+                if !is_first_run {
+                    // Emit event for new connections
+                    for device in current_devices.difference(&last_devices) {
+                        let _ = app_handle.emit("bluetooth-connected", device.clone());
+                    }
+                    // Emit event for disconnections
+                    for device in last_devices.difference(&current_devices) {
+                        let _ = app_handle.emit("bluetooth-disconnected", device.clone());
+                    }
+                } else {
+                    is_first_run = false;
+                }
+                last_devices = current_devices;
             }
-        }
+        });
     });
 }
 
@@ -1124,6 +1133,17 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
             fn GetWindowTextW(hwnd: isize, lpString: *mut u16, nMaxCount: i32) -> i32;
             fn GetShellWindow() -> isize;
             fn GetAsyncKeyState(vKey: i32) -> i16;
+            fn GetWindowLongW(hWnd: isize, nIndex: i32) -> i32;
+            fn SetWindowLongW(hWnd: isize, nIndex: i32, dwNewLong: i32) -> i32;
+            fn SetWindowPos(
+                hWnd: isize,
+                hWndInsertAfter: isize,
+                X: i32,
+                Y: i32,
+                cx: i32,
+                cy: i32,
+                uFlags: u32,
+            ) -> i32;
         }
 
         let mut is_hidden = false;
@@ -1133,13 +1153,26 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
         let mut last_heavy_check = std::time::Instant::now();
         let mut should_hide_trigger = false;
 
-        let title_str = "Vibe Island Windows\0";
-        let title_u16: Vec<u16> = title_str.encode_utf16().collect();
-        let mut island_hwnd = unsafe { FindWindowW(std::ptr::null(), title_u16.as_ptr()) };
+        let mut island_hwnd = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
         if island_hwnd == 0 {
-            let title_fallback = "Vibe Island\0";
-            let title_u16_fallback: Vec<u16> = title_fallback.encode_utf16().collect();
-            island_hwnd = unsafe { FindWindowW(std::ptr::null(), title_u16_fallback.as_ptr()) };
+            let title_str = "Dynamic Island Windows\0";
+            let title_u16: Vec<u16> = title_str.encode_utf16().collect();
+            island_hwnd = unsafe { FindWindowW(std::ptr::null(), title_u16.as_ptr()) };
+            if island_hwnd == 0 {
+                let title_fallback = "Dynamic Island\0";
+                let title_u16_fallback: Vec<u16> = title_fallback.encode_utf16().collect();
+                island_hwnd = unsafe { FindWindowW(std::ptr::null(), title_u16_fallback.as_ptr()) };
+            }
+        }
+
+        if island_hwnd != 0 {
+            unsafe {
+                let ex_style = GetWindowLongW(island_hwnd, -20); // GWL_EXSTYLE
+                // WS_EX_TOOLWINDOW (0x00000080) | WS_EX_NOACTIVATE (0x08000000)
+                SetWindowLongW(island_hwnd, -20, ex_style | 0x00000080 | 0x08000000);
+                // HWND_TOPMOST (-1), SWP_NOMOVE (0x0002) | SWP_NOSIZE (0x0001) | SWP_NOACTIVATE (0x0010) | SWP_FRAMECHANGED (0x0020)
+                SetWindowPos(island_hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010 | 0x0020);
+            }
         }
 
         loop {
@@ -1149,6 +1182,13 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
             // Heavy checks (fullscreen/maximized apps detection) run once per second
             if last_heavy_check.elapsed() >= Duration::from_millis(1000) {
                 last_heavy_check = std::time::Instant::now();
+
+                // Đảm bảo cửa sổ luôn nằm trên cùng (z-order) định kỳ | Force HWND_TOPMOST periodically
+                if island_hwnd != 0 && !is_hidden {
+                    unsafe {
+                        SetWindowPos(island_hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010);
+                    }
+                }
 
                 let fg_hwnd = unsafe { GetForegroundWindow() };
                 if fg_hwnd != 0 {
@@ -1176,6 +1216,11 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                         if is_hidden {
                             let _ = window.show();
                             is_hidden = false;
+                            if island_hwnd != 0 {
+                                unsafe {
+                                    SetWindowPos(island_hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010);
+                                }
+                            }
                         }
                         should_hide_trigger = false;
                     } else {
@@ -1185,7 +1230,7 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                         let len = unsafe { GetWindowTextW(fg_hwnd, title_buf.as_mut_ptr(), 256) };
                         if len > 0 {
                             let title = String::from_utf16_lossy(&title_buf[..len as usize]);
-                            if title == "Vibe Island Windows" || title == "Vibe Island" {
+                            if title == "Dynamic Island Windows" || title == "Dynamic Island" || title == "Vibe Island Windows" || title == "Vibe Island" {
                                 is_vibe_foreground = true;
                             }
                         }
@@ -1234,6 +1279,11 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                     if in_activation_zone {
                         let _ = window.show();
                         is_hidden = false;
+                        if island_hwnd != 0 {
+                            unsafe {
+                                SetWindowPos(island_hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010);
+                            }
+                        }
                     }
                 } else {
                     if !in_keep_zone {
@@ -1245,6 +1295,11 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 if is_hidden {
                     let _ = window.show();
                     is_hidden = false;
+                    if island_hwnd != 0 {
+                        unsafe {
+                            SetWindowPos(island_hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010);
+                        }
+                    }
                 }
             }
 

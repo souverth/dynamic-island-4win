@@ -25,7 +25,7 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-windows = { version = "0.52", features = ["Foundation", "Foundation_Collections", "Media_Control", "Storage_Streams", "UI_Notifications", "UI_Notifications_Management", "ApplicationModel", "Data_Xml_Dom"] }
+windows = { version = "0.52", features = ["Foundation", "Foundation_Collections", "Media_Control", "Storage_Streams", "UI_Notifications", "UI_Notifications_Management", "ApplicationModel", "Data_Xml_Dom", "Devices_Bluetooth", "Devices_Enumeration"] }
 base64 = { version = "0.22" }
 rusqlite = { version = "0.31", features = ["bundled"] }
 tauri-plugin-drag = "2"

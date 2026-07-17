@@ -130,44 +130,6 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
         </div>
       );
 
-    case 'battery':
-      return wrap(
-        <div className={`flex items-center gap-2 ${battery.charging ? 'text-green-400' : battery.level < 20 ? 'text-red-400' : 'text-white/60'}`}>
-          <div className="relative flex-shrink-0">
-            <svg width="22" height="13" viewBox="0 0 22 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0.5" y="0.5" width="18" height="12" rx="2.5"
-                stroke={battery.charging ? '#4ade80' : battery.level < 20 ? '#f87171' : 'rgba(255,255,255,0.4)'}
-                strokeWidth="1"
-                fill="none"
-              />
-              <rect x="19" y="4" width="2.5" height="5" rx="1"
-                fill={battery.charging ? '#4ade80' : battery.level < 20 ? '#f87171' : 'rgba(255,255,255,0.3)'}
-              />
-              <rect
-                x="2" y="2"
-                width={Math.round((battery.level / 100) * 15)}
-                height="9" rx="1.5"
-                fill={battery.charging ? '#4ade80' : battery.level < 20 ? '#f87171' : battery.level < 50 ? '#facc15' : '#4ade80'}
-                opacity={battery.charging ? '0.35' : '0.9'}
-              />
-            </svg>
-
-            {battery.charging && (
-              <div className="absolute inset-0 flex items-center justify-center battery-bolt-pop" style={{ marginRight: '3px' }}>
-                <svg width="8" height="11" viewBox="0 0 8 11" fill="none">
-                  <path d="M4.5 0L0 6.5H3.5L3 11L8 4H4.5L4.5 0Z"
-                    fill="white"
-                  />
-                </svg>
-              </div>
-            )}
-          </div>
-
-          <span className="text-[11px] font-bold tabular-nums">
-            {battery.level}%
-          </span>
-        </div>
-      );
 
     case 'bluetooth':
       return wrap(
@@ -252,37 +214,52 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
       const showBell = unreadNotifsCount > 0;
       
       const renderBattery = () => {
-        const batteryColor = battery.charging 
-          ? '#4ade80' 
-          : battery.level < 20 
-            ? '#f87171' 
-            : battery.level < 50 
-              ? '#facc15' 
-              : 'rgba(255,255,255,0.4)';
+        const isCharging = battery.charging;
+        const isLow = battery.level < 20;
+        const isMid = battery.level < 50;
 
-        const batteryFillColor = battery.charging
+        const strokeColor = isCharging
           ? '#4ade80'
-          : battery.level < 20
-            ? '#f87171'
-            : battery.level < 50
-              ? '#facc15'
-              : '#4ade80';
+          : isLow ? '#f87171'
+          : 'rgba(255,255,255,0.3)';
+
+        const fillColor = isCharging
+          ? '#4ade80'
+          : isLow ? '#f87171'
+          : isMid ? '#facc15'
+          : '#ffffff';
+
+        const fillOpacity = isCharging ? '0.38' : isLow ? '0.9' : '0.55';
 
         return (
           <div className="relative flex-shrink-0">
-            <svg width="20" height="12" viewBox="0 0 22 13" fill="none">
+            <svg
+              width="20" height="12" viewBox="0 0 22 13" fill="none"
+              className={isCharging ? 'battery-svg-charging' : ''}
+            >
+              {/* body */}
               <rect x="0.5" y="0.5" width="18" height="12" rx="2.5"
-                stroke={batteryColor} strokeWidth="1" fill="none" />
-              <rect x="19" y="4" width="2.5" height="5" rx="1" fill={batteryColor} />
+                stroke={strokeColor} strokeWidth="1" fill="none" />
+              {/* tip */}
+              <rect x="19" y="4" width="2.5" height="5" rx="1" fill={strokeColor} />
+              {/* fill level */}
               <rect x="2" y="2"
                 width={Math.round((battery.level / 100) * 15)}
                 height="9" rx="1.5"
-                fill={batteryFillColor} opacity={battery.charging ? "0.35" : "0.9"} />
+                fill={fillColor}
+                opacity={fillOpacity}
+                className={isCharging ? 'battery-fill-charging' : ''}
+              />
             </svg>
-            {battery.charging && (
-              <div className="absolute inset-0 flex items-center justify-center" style={{ marginRight: '3px' }}>
+
+            {/* bolt — hiện khi sạc, fade nhẹ */}
+            {isCharging && (
+              <div
+                className="absolute inset-0 flex items-center justify-center battery-bolt-charging"
+                style={{ marginRight: '3px' }}
+              >
                 <svg width="6" height="9" viewBox="0 0 8 11" fill="none">
-                  <path d="M4.5 0L0 6.5H3.5L3 11L8 4H4.5L4.5 0Z" fill="white" />
+                  <path d="M4.5 0L0 6.5H3.5L3 11L8 4H4.5Z" fill="white" fillOpacity="0.9" />
                 </svg>
               </div>
             )}

@@ -215,31 +215,49 @@
   animation: musicPulseRing 2s ease-out infinite;
 }
 
-/* ── Battery: charging sweep animation (Simplified) ──────── */
-.battery-charge-sweep {
-  display: none !important;
+/* ── Battery: charging animations (subtle, Apple-style) ─────── */
+
+/* Fill "breathe" — fill xanh lá nhịp thở nhẹ */
+@keyframes batteryFillBreathe {
+  0%, 100% { opacity: 0.30; }
+  50%       { opacity: 0.55; }
+}
+.battery-fill-charging {
+  animation: batteryFillBreathe 2.4s ease-in-out infinite;
 }
 
-/* ── Battery: glow pulse behind icon when charging (Disabled) ── */
-.battery-charge-glow {
-  display: none !important;
+/* Bolt icon — fade nhẹ, không scale, không bounce */
+@keyframes batteryBoltBreath {
+  0%, 100% { opacity: 0.70; }
+  50%       { opacity: 1; }
+}
+.battery-bolt-charging {
+  animation: batteryBoltBreath 2.4s ease-in-out infinite;
 }
 
-/* ── Battery: lightning bolt pop-in & breathe (Static Apple Style) ── */
-.battery-bolt-pop {
-  /* Completely static, no scaling or drop-shadows */
-  transform: none !important;
-  filter: none !important;
+/* Border glow cực mờ quanh battery SVG khi sạc */
+@keyframes batteryBorderGlow {
+  0%, 100% { filter: drop-shadow(0 0 1.5px rgba(74, 222, 128, 0.0)); }
+  50%       { filter: drop-shadow(0 0 2.5px rgba(74, 222, 128, 0.35)); }
+}
+.battery-svg-charging {
+  animation: batteryBorderGlow 2.4s ease-in-out infinite;
 }
 
-/* ── Battery: level % subtle pulse when charging (Disabled) ── */
-.battery-level-pulse {
-  animation: none !important;
-  opacity: 1 !important;
+/* % text — hoàn toàn tĩnh khi sạc, không pulse */
+.battery-level-charging {
+  color: #4ade80;
+  opacity: 1;
 }
 
-
-/* ── Notification slot: slide up + fade in ───────────────── */
+/* ── Battery: inline charging group enter animation ──────── */
+@keyframes batteryChargeInlineEnter {
+  from { opacity: 0; transform: scale(0.92) translateX(-4px); }
+  to   { opacity: 1; transform: scale(1) translateX(0); }
+}
+.battery-charge-inline-enter {
+  animation: batteryChargeInlineEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
 @keyframes notifSlotEnter {
   0%   { opacity: 0; transform: translateY(6px) scale(0.9); }
   65%  { transform: translateY(-1.5px) scale(1.04); }
