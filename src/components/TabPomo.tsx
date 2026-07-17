@@ -101,10 +101,10 @@ export const TabPomo: React.FC<TabPomoProps> = ({
       {/* Main Timer Dial */}
       <div className="relative w-[136px] h-[136px] flex items-center justify-center my-0.5">
         {/* Glow behind the ring */}
-        <div 
+        <div
           className={`absolute inset-4 rounded-full transition-all duration-1000 ${
-            isRunning 
-              ? 'bg-gradient-to-tr from-warning-color/20 to-red-500/20 animate-pulse scale-110 opacity-100 blur-xl' 
+            isRunning
+              ? 'bg-gradient-to-tr from-warning-color/20 to-red-500/20 animate-pulse scale-110 opacity-100 blur-xl'
               : 'bg-warning-color/5 opacity-40 scale-100 blur-lg'
           }`}
         />
@@ -141,7 +141,7 @@ export const TabPomo: React.FC<TabPomoProps> = ({
           <span className="text-[34px] font-mono font-bold text-white tracking-tight leading-none">
             {timeString}
           </span>
-          <span 
+          <span
             className={`text-[9px] uppercase tracking-[0.2em] mt-2 font-black transition-colors ${
               isRunning ? 'text-warning-color animate-pulse' : 'text-white/40'
             }`}

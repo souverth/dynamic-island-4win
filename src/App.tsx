@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import { Bell, Timer, ListTodo, Music, Inbox, Cpu } from 'lucide-react';
+import { Bell, Timer, ListTodo, Music, Inbox } from 'lucide-react';
 import { CompactIsland } from './components/CompactIsland';
 import { useBattery } from './hooks/useBattery';
 import { useMedia } from './hooks/useMedia';
@@ -15,7 +15,6 @@ const TabNotes = lazy(() => import('./components/TabNotes').then(m => ({ default
 const TabMusic = lazy(() => import('./components/TabMusic').then(m => ({ default: m.TabMusic })));
 const TabDrop = lazy(() => import('./components/TabDrop').then(m => ({ default: m.TabDrop })));
 const TabSettings = lazy(() => import('./components/TabSettings').then(m => ({ default: m.TabSettings })));
-const TabHardware = lazy(() => import('./components/TabHardware').then(m => ({ default: m.TabHardware })));
 const TabNotifications = lazy(() => import('./components/TabNotifications').then(m => ({ default: m.TabNotifications })));
 
 const FIXED_WIDTH = 650; // Wide enough to accommodate all compact states and hovered music without resizing the Tauri window
@@ -23,7 +22,7 @@ const FIXED_WIDTH = 650; // Wide enough to accommodate all compact states and ho
 export const App: React.FC = () => {
   const { settings, setSettings } = useSettings();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tab-pomo' | 'tab-notes' | 'tab-music' | 'tab-drop' | 'tab-settings' | 'tab-hardware' | 'tab-notifications'>('tab-pomo');
+  const [activeTab, setActiveTab] = useState<'tab-pomo' | 'tab-notes' | 'tab-music' | 'tab-drop' | 'tab-settings' | 'tab-notifications'>('tab-pomo');
   const [currentSlot, setCurrentSlot] = useState<string>('idle');
   const [timeString, setTimeString] = useState('00:00');
   const [tasksCount, setTasksCount] = useState(0);
@@ -65,7 +64,7 @@ export const App: React.FC = () => {
 
   const [btDeviceName, setBtDeviceName] = useState<string>('');
   const [btStatus, setBtStatus] = useState<'connected' | 'disconnected'>('connected');
-  const [systemNotif, setSystemNotif] = useState<{ appName: string; title: string; message: string } | null>(null);
+  const [systemNotif, setSystemNotif] = useState<{ appName: string; title: string; message: string; imagePath?: string } | null>(null);
 
   // Lịch sử thông báo chỉ lưu trữ tạm thời trên bộ nhớ RAM, tự động giải phóng khi tắt ứng dụng | Notification history is stored in RAM only, auto-cleared on app close
   const [notifHistory, setNotifHistory] = useState<StoredNotification[]>([]);
@@ -76,6 +75,19 @@ export const App: React.FC = () => {
 
   const handleMarkAllAsRead = () => {
     setNotifHistory((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleNotificationClick = async (notif: StoredNotification) => {
+    handleMarkAsRead(notif.id);
+    ignoreNextBlurRef.current = true;
+    if ((window as any).__TAURI__) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('focus_window_by_name', { name: notif.appName });
+      } catch (err) {
+        console.error('Failed to focus window:', err);
+      }
+    }
   };
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -145,6 +157,7 @@ export const App: React.FC = () => {
   const islandRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const lastSizeRef = useRef({ width: 0, height: 0 });
+  const ignoreNextBlurRef = useRef(false);
   const expandedRefCallback = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -153,7 +166,7 @@ export const App: React.FC = () => {
     if (node) {
       const observer = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const naturalHeight = entry.target.scrollHeight + 26;
+          const naturalHeight = entry.target.scrollHeight + 34;
           setContentHeight(naturalHeight);
         }
       });
@@ -257,12 +270,25 @@ export const App: React.FC = () => {
 
       try {
         const { listen } = await import('@tauri-apps/api/event');
-        unlisten = await listen<{ app_name: string; title: string; message: string }>('system-notification', (event) => {
+        unlisten = await listen<{ app_name: string; title: string; message: string; image_path?: string }>('system-notification', async (event) => {
           const payload = event.payload;
+          
+          let imgUrl = '';
+          if (payload.image_path) {
+            try {
+              const { convertFileSrc } = await import('@tauri-apps/api/core');
+              const cleanPath = payload.image_path.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
+              imgUrl = convertFileSrc(decodeURIComponent(cleanPath));
+            } catch (err) {
+              console.error('Failed to convert image path:', err);
+            }
+          }
+
           setSystemNotif({
             appName: payload.app_name,
             title: payload.title,
-            message: payload.message
+            message: payload.message,
+            imagePath: imgUrl || undefined,
           });
 
           // Thêm vào lịch sử lưu trữ thông báo | Add to notifications history
@@ -273,6 +299,7 @@ export const App: React.FC = () => {
             message: payload.message,
             timestamp: Date.now(),
             read: false,
+            imagePath: imgUrl || undefined,
           };
           setNotifHistory((prev) => [newNotif, ...prev].slice(0, 50));
 
@@ -463,10 +490,6 @@ export const App: React.FC = () => {
             const paths: string[] = payload.paths || [];
             if (paths.length === 0) return;
 
-            setActiveTab('tab-drop');
-            setIsExpanded(true);
-            setCurrentSlot('files');
-
             const { invoke } = await import('@tauri-apps/api/core');
             const newFiles: StashedFile[] = [];
             for (const sourcePath of paths) {
@@ -477,7 +500,13 @@ export const App: React.FC = () => {
                 console.error('Failed to stash file:', err);
               }
             }
-            setStashedFiles((prev) => [...prev, ...newFiles]);
+
+            if (newFiles.length > 0) {
+              setStashedFiles((prev) => [...prev, ...newFiles]);
+              setActiveTab('tab-drop');
+              setIsExpanded(true);
+              setCurrentSlot('files');
+            }
           }
         }).then((fn) => { unlisten = fn; });
       });
@@ -498,16 +527,18 @@ export const App: React.FC = () => {
         setIsDragOver(false);
         if (!e.dataTransfer?.files?.length) return;
 
-        setActiveTab('tab-drop');
-        setIsExpanded(true);
-        setCurrentSlot('files');
-
         const newFiles: StashedFile[] = [];
         for (let i = 0; i < e.dataTransfer.files.length; i++) {
           const f = e.dataTransfer.files[i];
           newFiles.push({ name: f.name, size: f.size, path: (f as any).path || '' });
         }
-        setStashedFiles((prev) => [...prev, ...newFiles]);
+
+        if (newFiles.length > 0) {
+          setStashedFiles((prev) => [...prev, ...newFiles]);
+          setActiveTab('tab-drop');
+          setIsExpanded(true);
+          setCurrentSlot('files');
+        }
       };
 
       window.addEventListener('dragenter', handleDragEnter);
@@ -533,6 +564,10 @@ export const App: React.FC = () => {
       const win = getCurrentWindow();
       win.onFocusChanged(({ payload: focused }: { payload: boolean }) => {
         if (!focused) {
+          if (ignoreNextBlurRef.current) {
+            ignoreNextBlurRef.current = false;
+            return;
+          }
           setIsExpanded(false);
         }
       }).then((fn: any) => {
@@ -589,14 +624,27 @@ export const App: React.FC = () => {
         // Luôn cập nhật kích thước cửa sổ trước | Always set the size first
         await win.setSize(new LogicalSize(targetWidth, targetHeight));
 
-        const monitor = await (win as any).primaryMonitor();
-        if (monitor) {
-          const monitorSize = monitor.size;
-          const scaleFactor = monitor.scaleFactor;
-          const logicalMonitorSize = monitorSize.toLogical(scaleFactor);
+        // Get the monitor to position on
+        let monitor = null;
+        if (settings.selectedMonitor) {
+          const monitors = await (win as any).availableMonitors();
+          monitor = monitors.find((m: any) => m.name === settings.selectedMonitor) || null;
+        }
+        if (!monitor) {
+          monitor = await (win as any).currentMonitor();
+        }
+        if (!monitor) {
+          monitor = await (win as any).primaryMonitor();
+        }
 
-          const x = (logicalMonitorSize.width - targetWidth) / 2.0;
-          const y = -12.0;
+        if (monitor) {
+          const scaleFactor = monitor.scaleFactor;
+          const logicalMonitorWidth = monitor.size.width / scaleFactor;
+          const logicalMonitorX = monitor.position.x / scaleFactor;
+          const logicalMonitorY = monitor.position.y / scaleFactor;
+
+          const x = logicalMonitorX + (logicalMonitorWidth - targetWidth) / 2.0;
+          const y = logicalMonitorY - 12.0;
 
           await win.setPosition(new LogicalPosition(x, y));
         }
@@ -606,7 +654,7 @@ export const App: React.FC = () => {
     };
 
     updateWindowSizeAndPosition();
-  }, [isExpanded, contentHeight, isHovered, displaySlot, settings.expandedWidth, track.title, windowHeightOverride]);
+  }, [isExpanded, contentHeight, isHovered, displaySlot, settings.expandedWidth, settings.selectedMonitor, track.title, windowHeightOverride]);
 
   // Đồng bộ chiều rộng active của island lên backend để tối ưu hóa click-through | Sync the active width of the island to backend to optimize transparent click-through accuracy
   useEffect(() => {
@@ -619,8 +667,15 @@ export const App: React.FC = () => {
         switch (displaySlot) {
           case 'music':
             return isHovered ? getDynamicMusicWidth() : 175;
-          case 'system-notification':
+          case 'system-notification': {
+            const hasImg = !!(systemNotif && systemNotif.imagePath);
+            if (hasImg) {
+              return isHovered ? 330 : 310;
+            }
             return isHovered ? 260 : 240;
+          }
+          case 'bluetooth':
+            return isHovered ? 220 : 200;
           case 'pomo':
           case 'tasks':
           case 'files':
@@ -697,15 +752,22 @@ export const App: React.FC = () => {
   const getCompactWidthClass = () => {
     if (isExpanded) return 'rounded-b-[12px] border-b border-x border-white/[0.08]';
 
-    const baseCompact = 'h-[34px] hover:h-[38px] rounded-b-[8px] p-[0_12px] justify-center border-b border-x border-white/[0.04]';
+    const baseCompact = 'h-[42px] hover:h-[46px] rounded-b-[8px] p-[0_6px] justify-center border-b border-x border-white/[0.04]';
 
-    if (isDragOver) return `w-[150px] hover:w-[170px] ${baseCompact}`;
+    if (isDragOver) return `w-[250px] h-[54px] rounded-b-[10px] p-[0_16px] justify-center border-b border-x border-white/[0.08]`;
 
     switch (displaySlot) {
       case 'music':
-        return `w-[175px] h-[34px] hover:h-[38px] rounded-b-[8px] p-[0_6px] justify-center border-b border-x border-white/[0.04]`;
-      case 'system-notification':
-        return `w-[240px] hover:w-[260px] ${baseCompact}`;
+        return `w-[175px] h-[42px] hover:h-[46px] rounded-b-[8px] p-[0_6px] justify-center border-b border-x border-white/[0.04]`;
+      case 'system-notification': {
+        const hasImg = !!(systemNotif && systemNotif.imagePath);
+        if (hasImg) {
+          return `w-[310px] hover:w-[330px] h-[75px] hover:h-[79px] rounded-b-[10px] p-[0_10px] justify-center border-b border-x border-white/[0.06]`;
+        }
+        return `w-[240px] hover:w-[260px] h-[46px] hover:h-[50px] rounded-b-[8px] p-[0_12px] justify-center border-b border-x border-white/[0.04]`;
+      }
+      case 'bluetooth':
+        return `w-[200px] hover:w-[220px] h-[46px] hover:h-[50px] rounded-b-[8px] p-[0_12px] justify-center border-b border-x border-white/[0.04]`;
       case 'pomo':
       case 'tasks':
       case 'files':
@@ -743,8 +805,9 @@ export const App: React.FC = () => {
         onTransitionEnd={handleTransitionEnd}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`island-notch relative bg-[#09090b] text-white flex flex-col items-center justify-start transition-all ease-[cubic-bezier(0.16,1,0.3,1)] outline-none cursor-pointer ${getCompactWidthClass()} ${isDragOver ? 'island-drag-active' : ''} ${notifSlot ? 'animate-island-alert' : ''}`}
+        className={`island-notch relative bg-[#09090b] text-white flex flex-col items-center justify-start transition-[width,height,border-radius,background-color] ease-[cubic-bezier(0.16,1,0.3,1)] outline-none cursor-pointer ${getCompactWidthClass()} ${isDragOver ? 'island-drag-active' : ''} ${notifSlot ? 'animate-island-alert' : ''}`}
         style={{
+          paddingTop: '8px',
           height: isExpanded || isTransitioningToCompact ? `${contentHeight}px` : undefined,
           width: isExpanded
             ? `${settings.expandedWidth}px`
@@ -753,10 +816,11 @@ export const App: React.FC = () => {
               : undefined,
           transitionDuration: `var(--anim-speed, 400ms)`,
           '--anim-speed': `${settings.animationSpeed}ms`,
+          '--island-radius': isExpanded ? '12px' : isDragOver ? '10px' : '8px',
         } as React.CSSProperties}
       >
         <div
-          className={`w-full flex-1 flex flex-col overflow-hidden ${isExpanded ? 'rounded-b-[12px] px-4 pt-[10px] pb-[16px]' : 'rounded-b-[8px] h-[34px] hover:h-[38px] p-[0_4px] justify-center'}`}
+          className={`w-full flex-1 flex flex-col overflow-hidden ${isExpanded ? 'rounded-b-[12px] px-4 pt-[10px] pb-[16px]' : `rounded-b-[8px] ${isDragOver ? 'h-[46px]' : 'h-[34px] hover:h-[38px]'} p-[0_4px] justify-center`}`}
         >
           {/* COMPACT STATE VIEW */}
           {!isExpanded && (
@@ -779,6 +843,10 @@ export const App: React.FC = () => {
                 btStatus={btStatus}
                 systemNotif={systemNotif}
                 unreadNotifsCount={notifHistory.filter((n) => !n.read).length}
+                onNotificationIconClick={() => {
+                  setActiveTab('tab-notifications');
+                  setIsExpanded(true);
+                }}
               />
             </div>
           )}
@@ -847,14 +915,6 @@ export const App: React.FC = () => {
 
                 <div className="w-[1px] h-4 bg-white/[0.04] mx-1"></div>
                 <button
-                  onClick={(e) => handleTabClick('tab-hardware', e)}
-                  className={`relative p-2 rounded-md hover:bg-white/[0.06] transition-all duration-300 hover:scale-110 active:scale-95 flex flex-col items-center gap-0.5 ${activeTab === 'tab-hardware' ? 'bg-white/[0.06] text-cyan-400' : 'text-text-secondary hover:text-white'}`}
-                  title="Hardware Info"
-                >
-                  <Cpu className="w-[18px] h-[18px]" />
-                  <span className={`absolute bottom-0.5 w-1 h-1 rounded-full bg-current transition-all duration-300 ${activeTab === 'tab-hardware' ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}`} />
-                </button>
-                <button
                   onClick={(e) => handleTabClick('tab-settings', e)}
                   className={`relative p-2 rounded-md hover:bg-white/[0.06] transition-all duration-300 hover:scale-110 active:scale-95 flex flex-col items-center gap-0.5 ${activeTab === 'tab-settings' ? 'bg-white/[0.06] text-accent-color' : 'text-text-secondary hover:text-white'}`}
                   title="Settings"
@@ -885,7 +945,7 @@ export const App: React.FC = () => {
                       language={settings.language}
                     />
                   )}
-                  {activeTab === 'tab-hardware' && <TabHardware language={settings.language} />}
+
                   {activeTab === 'tab-notes' && <TabNotes onCountChange={setTasksCount} language={settings.language} />}
                   {activeTab === 'tab-music' && (
                     <TabMusic
@@ -923,6 +983,7 @@ export const App: React.FC = () => {
                       soundEnabled={soundEnabled}
                       onToggleSound={setSoundEnabled}
                       language={settings.language}
+                      onNotificationClick={handleNotificationClick}
                     />
                   )}
                 </Suspense>

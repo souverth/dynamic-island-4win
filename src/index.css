@@ -33,29 +33,29 @@
 
 /* Custom styles for floating island */
 .island-container {
-  padding-top: 12px;
+  padding-top: 4px;
 }
 
 .island-notch::before,
 .island-notch::after {
   content: "";
   position: absolute;
-  top: 0;
-  width: 12px;
-  height: 12px;
+  top: 8px;
+  width: var(--island-radius, 8px);
+  height: var(--island-radius, 8px);
   background: transparent;
   pointer-events: none;
   transition: all var(--anim-speed, 0.4s) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .island-notch::before {
-  left: -12px;
-  background: radial-gradient(circle at bottom left, transparent 12px, #09090b 12px);
+  left: calc(-1 * var(--island-radius, 8px));
+  background: radial-gradient(circle at bottom left, transparent var(--island-radius, 8px), #09090b var(--island-radius, 8px));
 }
 
 .island-notch::after {
-  right: -12px;
-  background: radial-gradient(circle at bottom right, transparent 12px, #09090b 12px);
+  right: calc(-1 * var(--island-radius, 8px));
+  background: radial-gradient(circle at bottom right, transparent var(--island-radius, 8px), #09090b var(--island-radius, 8px));
 }
 
 /* Custom Scrollbar for Notes */
@@ -257,14 +257,16 @@
 /* ── Island Squishy Alert bounce ───────────────────────── */
 @keyframes islandAlert {
   0% { transform: scale(1); }
-  15% { transform: scale(1.06, 0.92); } /* Squeeze down and widen */
-  30% { transform: scale(0.94, 1.08) translateY(-4px); } /* Bounce up and stretch */
-  45% { transform: scale(1.02, 0.98) translateY(0.5px); } /* Settle down slightly */
-  65% { transform: scale(0.99, 1.01); }
+  15% { transform: scale(1.1, 0.9); } /* Squeeze height from bottom, widen sides */
+  30% { transform: scale(0.92, 1.08); } /* Stretch height downwards, narrow sides */
+  45% { transform: scale(1.04, 0.96); } /* Slight squeeze */
+  65% { transform: scale(0.98, 1.02); } /* Slight stretch */
+  85% { transform: scale(1.01, 0.99); }
   100% { transform: scale(1); }
 }
 .animate-island-alert {
   animation: islandAlert 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  transform-origin: top center;
 }
 
 /* ── Battery: inline charging group enter animation ──────── */

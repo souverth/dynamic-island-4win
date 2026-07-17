@@ -123,6 +123,7 @@ struct SystemNotification {
     app_name: String,
     title: String,
     message: String,
+    image_path: String,
 }
 
 async fn get_thumbnail_base64(
@@ -230,6 +231,7 @@ async fn start_media_listener(app_handle: AppHandle) {
 async fn start_notification_listener(app_handle: AppHandle) {
     use windows::UI::Notifications::Management::{UserNotificationListener, UserNotificationListenerAccessStatus};
     use windows::UI::Notifications::NotificationKinds;
+    use windows::core::ComInterface;
 
     let listener = match UserNotificationListener::Current() {
         Ok(l) => l,
@@ -306,33 +308,56 @@ async fn start_notification_listener(app_handle: AppHandle) {
                 let mut title = String::new();
                 let mut message = String::new();
 
-                if let Ok(toast_binding_name) = windows::UI::Notifications::KnownNotificationBindings::ToastGeneric() {
-                    if let Ok(toast_binding) = notification.Notification().and_then(|n| n.Visual()).and_then(|v| v.GetBinding(&toast_binding_name)) {
-                        if let Ok(text_elements) = toast_binding.GetTextElements() {
-                            let mut text_iter = text_elements.into_iter();
-                            if let Some(t_elem) = text_iter.next() {
-                                if let Ok(t_text) = t_elem.Text() {
-                                    title = t_text.to_string();
+                if let Ok(raw_notification) = notification.Notification() {
+                    let mut image_path = String::new();
+                    
+                    // Parse text elements from visual binding
+                    if let Ok(toast_binding_name) = windows::UI::Notifications::KnownNotificationBindings::ToastGeneric() {
+                        if let Ok(toast_binding) = raw_notification.Visual().and_then(|v| v.GetBinding(&toast_binding_name)) {
+                            if let Ok(text_elements) = toast_binding.GetTextElements() {
+                                let mut text_iter = text_elements.into_iter();
+                                if let Some(t_elem) = text_iter.next() {
+                                    if let Ok(t_text) = t_elem.Text() {
+                                        title = t_text.to_string();
+                                    }
                                 }
-                            }
-                            if let Some(m_elem) = text_iter.next() {
-                                if let Ok(m_text) = m_elem.Text() {
-                                    message = m_text.to_string();
+                                if let Some(m_elem) = text_iter.next() {
+                                    if let Ok(m_text) = m_elem.Text() {
+                                        message = m_text.to_string();
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                if !title.is_empty() || !message.is_empty() {
-                    let payload = SystemNotification {
-                        app_name,
-                        title,
-                        message,
-                    };
-                    let _ = app_handle.emit("system-notification", payload);
+                    // Parse image source from the entire XML content
+                    if let Ok(toast_notification) = raw_notification.cast::<windows::UI::Notifications::ToastNotification>() {
+                        if let Ok(xml_doc) = toast_notification.Content() {
+                            if let Ok(xml_str) = xml_doc.GetXml() {
+                                let xml = xml_str.to_string();
+                                if let Some(start_idx) = xml.find("<image") {
+                                    if let Some(src_idx) = xml[start_idx..].find("src=\"") {
+                                        let absolute_src_idx = start_idx + src_idx + 5;
+                                        if let Some(end_quote_idx) = xml[absolute_src_idx..].find("\"") {
+                                            image_path = xml[absolute_src_idx..absolute_src_idx + end_quote_idx].to_string();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if !title.is_empty() || !message.is_empty() {
+                        let payload = SystemNotification {
+                            app_name: app_name.clone(),
+                            title,
+                            message,
+                            image_path,
+                        };
+                        let _ = app_handle.emit("system-notification", payload);
+                    }
+                    last_processed_id = id;
                 }
-                last_processed_id = id;
             }
         }
         is_initialized = true;
@@ -979,62 +1004,6 @@ fn stash_file(source_path: String) -> Result<StashedFileResult, String> {
     })
 }
 
-#[tauri::command]
-async fn get_hardware_info() -> Result<String, String> {
-    tokio::task::spawn_blocking(|| {
-        use std::process::Command;
-
-        // Locate the PS1 script: prefer next to the exe, fall back to src-tauri/resources (dev mode)
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_default();
-        let script_candidates = [
-            exe_dir.join("resources").join("get_hardware_info.ps1"),
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("resources")
-                .join("get_hardware_info.ps1"),
-        ];
-        let script_path = script_candidates
-            .iter()
-            .find(|p| p.exists())
-            .cloned()
-            .unwrap_or_else(|| script_candidates[1].clone());
-
-        #[cfg(target_os = "windows")]
-        use std::os::windows::process::CommandExt;
-
-        let mut cmd = Command::new("powershell");
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-
-        let output = cmd
-            .args(&[
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                script_path.to_str().unwrap_or("get_hardware_info.ps1"),
-            ])
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        // Find the first '{' to skip any PS profile warning noise before the JSON
-        if let Some(idx) = stdout.find('{') {
-            Ok(stdout[idx..].trim().to_string())
-        } else {
-            // Fallback: return the raw stdout or error
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(format!(
-                "No JSON in output. stdout={} stderr={}",
-                stdout, stderr
-            ))
-        }
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
 
 #[tauri::command]
 fn delete_stashed_file(path: String) -> Result<(), String> {
@@ -1124,15 +1093,41 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
             fn GetCursorPos(lpPoint: *mut POINT) -> i32;
             fn IsZoomed(hwnd: isize) -> i32;
             fn GetWindowTextW(hwnd: isize, lpString: *mut u16, nMaxCount: i32) -> i32;
+            fn GetShellWindow() -> isize;
+            fn GetAsyncKeyState(vKey: i32) -> i16;
         }
 
         let mut is_hidden = false;
+        let mut last_win_pos = window.outer_position().unwrap_or_default();
+        let mut last_win_size = window.outer_size().unwrap_or_default();
 
         loop {
             std::thread::sleep(Duration::from_millis(250));
 
             let fg_hwnd = unsafe { GetForegroundWindow() };
             if fg_hwnd == 0 {
+                continue;
+            }
+
+            // Update window position and size caches safely
+            if let Ok(pos) = window.outer_position() {
+                if pos.x != 0 || pos.y != 0 {
+                    last_win_pos = pos;
+                }
+            }
+            if let Ok(size) = window.outer_size() {
+                if size.width != 0 || size.height != 0 {
+                    last_win_size = size;
+                }
+            }
+
+            // Skip auto-hide if foreground is the desktop wallpaper shell
+            let shell_hwnd = unsafe { GetShellWindow() };
+            if fg_hwnd == shell_hwnd {
+                if is_hidden {
+                    let _ = window.show();
+                    is_hidden = false;
+                }
                 continue;
             }
 
@@ -1166,19 +1161,17 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 let mut pt = POINT { x: 0, y: 0 };
                 unsafe { GetCursorPos(&mut pt) };
 
-                let win_pos = window.outer_position().unwrap_or_default();
-                let win_size = window.outer_size().unwrap_or_default();
                 let scale_factor = window.scale_factor().unwrap_or(1.0);
-                let center_x = win_pos.x + (win_size.width as i32) / 2;
+                let center_x = last_win_pos.x + (last_win_size.width as i32) / 2;
 
                 // Activation zone: relative to window's physical position
-                let in_activation_zone = pt.y >= win_pos.y 
-                    && pt.y <= win_pos.y + (12.0 * scale_factor) as i32 
+                let in_activation_zone = pt.y >= last_win_pos.y 
+                    && pt.y <= last_win_pos.y + (12.0 * scale_factor) as i32 
                     && (pt.x - center_x).abs() < (220.0 * scale_factor) as i32;
                 
                 // Keep zone: relative to window's physical position
-                let in_keep_zone = pt.y >= win_pos.y 
-                    && pt.y <= win_pos.y + (50.0 * scale_factor) as i32 
+                let in_keep_zone = pt.y >= last_win_pos.y 
+                    && pt.y <= last_win_pos.y + (50.0 * scale_factor) as i32 
                     && (pt.x - center_x).abs() < (250.0 * scale_factor) as i32;
 
                 if is_hidden {
@@ -1201,27 +1194,27 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
 
             // ── CLICK-THROUGH OPTIMIZATION FOR COMPACT & EXPANDED ISLAND ──
             if !is_hidden {
-                let size = window.outer_size().unwrap_or_default();
                 let mut pt = POINT { x: 0, y: 0 };
                 unsafe { GetCursorPos(&mut pt) };
 
                 let scale_factor = window.scale_factor().unwrap_or(1.0);
-                let win_pos = window.outer_position().unwrap_or_default();
-                let center_x = win_pos.x + (size.width as i32) / 2;
+                let center_x = last_win_pos.x + (last_win_size.width as i32) / 2;
 
                 let active_width = ACTIVE_ISLAND_WIDTH.load(std::sync::atomic::Ordering::Relaxed) as f64;
-                let is_expanded = size.height > ((50.0 * scale_factor) as u32);
+                let is_expanded = last_win_size.height > ((50.0 * scale_factor) as u32);
                 let active_height = if is_expanded {
-                    size.height as f64
+                    last_win_size.height as f64
                 } else {
                     (38.0 + 12.0) * scale_factor
                 };
 
-                let in_island_rect = pt.y >= win_pos.y
-                    && pt.y <= win_pos.y + active_height as i32
+                let is_lbutton_down = unsafe { GetAsyncKeyState(0x01) } < 0;
+
+                let in_island_rect = pt.y >= last_win_pos.y
+                    && pt.y <= last_win_pos.y + active_height as i32
                     && (pt.x - center_x).abs() <= ((active_width / 2.0) * scale_factor) as i32;
 
-                let _ = window.set_ignore_cursor_events(!in_island_rect);
+                let _ = window.set_ignore_cursor_events(!in_island_rect && !is_lbutton_down);
             }
         }
     });
@@ -1502,7 +1495,6 @@ pub fn run() {
             get_local_task_stats,
             stash_file,
             delete_stashed_file,
-            get_hardware_info,
             get_available_monitors,
             reposition_to_monitor,
             focus_window_by_name,

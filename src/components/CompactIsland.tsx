@@ -22,6 +22,7 @@ interface CompactIslandProps {
   btStatus?: 'connected' | 'disconnected';
   systemNotif?: { appName: string; title: string; message: string } | null;
   unreadNotifsCount?: number;
+  onNotificationIconClick?: () => void;
 }
 
 export const CompactIsland: React.FC<CompactIslandProps> = ({
@@ -42,6 +43,7 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
   btStatus = 'connected',
   systemNotif = null,
   unreadNotifsCount = 0,
+  onNotificationIconClick,
 }) => {
   // Bao bọc bằng hiệu ứng trượt khi hiển thị thông báo tạm thời | Wrap content in slide transition for transient notifications
   const wrap = (content: React.ReactNode) =>
@@ -51,11 +53,13 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
 
   if (isDragOver) {
     return (
-      <div className="flex items-center gap-1.5">
-        <Download className="w-3.5 h-3.5 text-cyan-400 drag-icon-bounce flex-shrink-0" />
-        <div className="flex flex-col leading-none gap-0.5">
-          <span className="text-[10px] font-bold text-white/95">Drop files here</span>
-          <span className="text-[8px] text-white/40">to stash in Island</span>
+      <div className="flex items-center gap-3 w-full justify-start px-2 py-1 select-none animate-compact-reveal">
+        <div className="w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center flex-shrink-0">
+          <Download className="w-4 h-4 text-cyan-400 drag-icon-bounce" />
+        </div>
+        <div className="flex flex-col text-left justify-center min-w-0">
+          <span className="text-[10.5px] font-bold text-cyan-400 tracking-wide animate-pulse">Drag & Drop files...</span>
+          <span className="text-[9px] text-white/40 truncate">Stash files in Dynamic Island</span>
         </div>
       </div>
     );
@@ -78,14 +82,11 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
             )}
           </div>
 
-          {/* Phía giữa: Tên bài hát & Nghệ sĩ (chỉ hiển thị khi hover) | Middle: Song Title & Artist (only visible when hovered) */}
+          {/* Phía giữa: Tên bài hát (chỉ hiển thị khi hover) | Middle: Song Title (only visible when hovered) */}
           {isHovered && track.title && track.title !== 'Ready' && (
-            <div className="flex flex-col leading-none min-w-0 mx-2 select-none flex-grow text-left animate-content-reveal">
-              <span className="text-[10px] font-semibold text-white truncate max-w-[120px]" title={track.title}>
+            <div className="flex flex-col justify-center min-w-0 mx-2 select-none flex-grow text-left animate-content-reveal">
+              <span className="text-[10px] font-semibold text-white truncate max-w-[125px]" title={track.title}>
                 {track.title}
-              </span>
-              <span className="text-[8px] text-white/40 truncate max-w-[120px] mt-0.5" title={track.artist}>
-                {track.artist}
               </span>
             </div>
           )}
@@ -190,6 +191,42 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
       );
 
     case 'system-notification':
+      const hasImage = !!(systemNotif && systemNotif.imagePath);
+      
+      if (hasImage && systemNotif) {
+        return wrap(
+          <div className="flex items-center justify-between w-full h-full gap-3 px-1">
+            <div className="flex flex-col min-w-0 flex-grow justify-center leading-tight">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                  {getAppIcon(systemNotif.appName, 9)}
+                </span>
+                <span className="text-[9px] font-bold text-white/50 truncate max-w-[120px]">
+                  {systemNotif.appName}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-white mt-1 truncate" title={systemNotif.title}>
+                {systemNotif.title}
+              </span>
+              <span className="text-[8px] text-white/60 mt-0.5 line-clamp-2" title={systemNotif.message}>
+                {systemNotif.message}
+              </span>
+            </div>
+            
+            <div className="w-[85px] h-[55px] rounded-md overflow-hidden border border-white/[0.08] bg-white/[0.02] flex-shrink-0 flex items-center justify-center shadow-inner">
+              <img
+                src={systemNotif.imagePath}
+                className="w-full h-full object-cover"
+                alt="notification-preview"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
+
       return wrap(
         <div className="flex items-center gap-2 px-1.5 min-w-0 max-w-full">
           <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -212,39 +249,80 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
 
     case 'idle':
     default:
-      return (
-        <div className="flex items-center gap-2 text-white/60 hover:text-white transition-colors">
-          {battery.charging ? (
-            <div className="relative flex-shrink-0 battery-charge-inline-enter">
-              <svg width="20" height="12" viewBox="0 0 22 13" fill="none">
-                <rect x="0.5" y="0.5" width="18" height="12" rx="2.5"
-                  stroke="#4ade80" strokeWidth="1" fill="none" />
-                <rect x="19" y="4" width="2.5" height="5" rx="1" fill="#4ade80" />
-                <rect x="2" y="2"
-                  width={Math.round((battery.level / 100) * 15)}
-                  height="9" rx="1.5"
-                  fill="#4ade80" opacity="0.35" />
-              </svg>
+      const showBell = unreadNotifsCount > 0;
+      
+      const renderBattery = () => {
+        const batteryColor = battery.charging 
+          ? '#4ade80' 
+          : battery.level < 20 
+            ? '#f87171' 
+            : battery.level < 50 
+              ? '#facc15' 
+              : 'rgba(255,255,255,0.4)';
+
+        const batteryFillColor = battery.charging
+          ? '#4ade80'
+          : battery.level < 20
+            ? '#f87171'
+            : battery.level < 50
+              ? '#facc15'
+              : '#4ade80';
+
+        return (
+          <div className="relative flex-shrink-0">
+            <svg width="20" height="12" viewBox="0 0 22 13" fill="none">
+              <rect x="0.5" y="0.5" width="18" height="12" rx="2.5"
+                stroke={batteryColor} strokeWidth="1" fill="none" />
+              <rect x="19" y="4" width="2.5" height="5" rx="1" fill={batteryColor} />
+              <rect x="2" y="2"
+                width={Math.round((battery.level / 100) * 15)}
+                height="9" rx="1.5"
+                fill={batteryFillColor} opacity={battery.charging ? "0.35" : "0.9"} />
+            </svg>
+            {battery.charging && (
               <div className="absolute inset-0 flex items-center justify-center" style={{ marginRight: '3px' }}>
                 <svg width="6" height="9" viewBox="0 0 8 11" fill="none">
-                  <path d="M4.5 0L0 6.5H3.5L3 11L8 4H4.5L4.5 0Z"
-                    fill="white" />
+                  <path d="M4.5 0L0 6.5H3.5L3 11L8 4H4.5L4.5 0Z" fill="white" />
                 </svg>
               </div>
-            </div>
-          ) : (
-            <Clock className="w-3.5 h-3.5 opacity-60" />
-          )}
-          <span className="text-[12px] font-medium whitespace-nowrap">{timeString}</span>
-          {unreadNotifsCount > 0 && (
-            <div className="relative flex items-center justify-center ml-1.5 mr-1 flex-shrink-0">
-              {/* Icon chuông và chấm đỏ đè góc thông báo chưa xem | Bell icon with absolute-positioned unread badge overlay */}
-              <Bell className="w-3.5 h-3.5 text-white/50" />
+            )}
+          </div>
+        );
+      };
+
+      if (!showBell) {
+        // 1 icon -> Center battery icon + time string together in the middle
+        return (
+          <div className="flex items-center justify-center gap-2 w-full text-white/60 hover:text-white transition-colors">
+            {renderBattery()}
+            <span className="text-[12px] font-medium whitespace-nowrap text-white/90">{timeString}</span>
+          </div>
+        );
+      }
+
+      // 3 items -> Symmetrical layout (Battery left, Bell right, Time middle)
+      return (
+        <div className="flex items-center justify-between w-full text-white/60 hover:text-white transition-colors px-0.5">
+          <div className="flex items-center justify-start w-[28px] flex-shrink-0">
+            {renderBattery()}
+          </div>
+
+          <span className="text-[12px] font-medium whitespace-nowrap text-white/90">{timeString}</span>
+
+          <div className="flex items-center justify-end w-[28px] flex-shrink-0">
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onNotificationIconClick) onNotificationIconClick();
+              }}
+              className="relative flex items-center justify-center cursor-pointer hover:text-white transition-colors"
+            >
+              <Bell className="w-3.5 h-3.5 text-white/50 animate-[bell-ring_1.5s_ease-in-out_infinite]" />
               <span className="absolute -top-1 -right-1.5 min-w-[11px] h-[11px] px-0.5 rounded-full bg-[#ff3b30] text-white text-[7px] font-black flex items-center justify-center border border-[#09090b] leading-none">
                 {unreadNotifsCount}
               </span>
             </div>
-          )}
+          </div>
         </div>
       );
   }
