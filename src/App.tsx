@@ -696,7 +696,7 @@ export const App: React.FC = () => {
         invoke('update_island_width', { width }).catch(() => {});
       });
     }
-  }, [isExpanded, isHovered, displaySlot, isDragOver, settings.expandedWidth, track.title, notifHistory]);
+  }, [isExpanded, isHovered, displaySlot, isDragOver, settings.expandedWidth, track.title, notifHistory, systemNotif]);
 
   // Đồng bộ khe hiển thị khi nhạc bắt đầu phát hoặc dừng | Sync compact slot when music starts/stops
   useEffect(() => {

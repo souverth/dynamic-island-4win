@@ -25,6 +25,23 @@ export const TabMusic: React.FC<TabMusicProps> = ({ track, localPlaying, timelin
     ? Math.min(100, (timeline.position_s / timeline.duration_s) * 100)
     : 0;
 
+  const handleProgressClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    if (timeline.duration_s <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const targetSeconds = Math.floor(percentage * timeline.duration_s);
+    
+    if ((window as any).__TAURI__) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('seek_media', { positionMs: targetSeconds * 1000 });
+      } catch (err) {
+        console.error('Failed to seek:', err);
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 w-full animate-content-reveal p-1 select-none">
       <div className="flex items-center justify-between gap-3">
@@ -64,12 +81,17 @@ export const TabMusic: React.FC<TabMusicProps> = ({ track, localPlaying, timelin
       </div>
 
       {/* Progress Bar (OS Timeline) */}
-      <div className="flex flex-col gap-1.5">
-        <div className="w-full h-[3px] bg-white/[0.08] rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-white/80 rounded-full transition-all duration-300 ease-out" 
-            style={{ width: `${progressPercent}%` }}
-          />
+      <div className="flex flex-col gap-1">
+        <div 
+          onClick={handleProgressClick}
+          className="w-full py-1.5 cursor-pointer group flex items-center"
+        >
+          <div className="w-full h-[3px] group-hover:h-[4px] bg-white/[0.08] rounded-full overflow-hidden transition-all duration-150">
+            <div 
+              className="h-full bg-white/70 group-hover:bg-white/95 rounded-full transition-all duration-300 ease-out" 
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
         <div className="flex justify-between text-[8.5px] text-white/35 font-mono tracking-wider">
           <span>{formatTime(timeline.position_s)}</span>

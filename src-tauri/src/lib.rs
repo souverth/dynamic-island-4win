@@ -335,13 +335,24 @@ async fn start_notification_listener(app_handle: AppHandle) {
                         if let Ok(xml_doc) = toast_notification.Content() {
                             if let Ok(xml_str) = xml_doc.GetXml() {
                                 let xml = xml_str.to_string();
-                                if let Some(start_idx) = xml.find("<image") {
-                                    if let Some(src_idx) = xml[start_idx..].find("src=\"") {
-                                        let absolute_src_idx = start_idx + src_idx + 5;
-                                        if let Some(end_quote_idx) = xml[absolute_src_idx..].find("\"") {
-                                            image_path = xml[absolute_src_idx..absolute_src_idx + end_quote_idx].to_string();
+                                let mut search_str = &xml[..];
+                                while let Some(start_offset) = search_str.find("<image") {
+                                    let img_tag = &search_str[start_offset..];
+                                    if let Some(src_offset) = img_tag.find("src=\"") {
+                                        let val_start = src_offset + 5;
+                                        if let Some(val_end) = img_tag[val_start..].find("\"") {
+                                            let src_val = &img_tag[val_start..val_start + val_end];
+                                            let src_str = src_val.to_string();
+                                            // Skip UWP package resources (ms-appx/ms-appdata) if there are other choices
+                                            if !src_str.starts_with("ms-appx") && !src_str.starts_with("ms-appdata") {
+                                                image_path = src_str;
+                                                break;
+                                            } else if image_path.is_empty() {
+                                                image_path = src_str;
+                                            }
                                         }
                                     }
+                                    search_str = &img_tag[6..];
                                 }
                             }
                         }
@@ -383,6 +394,23 @@ fn control_media(action: String) -> Result<(), String> {
         keybd_event(vk, 0, 2, 0); // Key up (KEYEVENTF_KEYUP = 2)
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+async fn seek_media(position_ms: i64) -> Result<(), String> {
+    use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
+    let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+        .map_err(|e| e.to_string())?
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if let Ok(session) = manager.GetCurrentSession() {
+        let position_100ns = position_ms * 10_000;
+        if let Ok(op) = session.TryChangePlaybackPositionAsync(position_100ns) {
+            let _ = op.await;
+        }
+    }
     Ok(())
 }
 
@@ -1087,6 +1115,7 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
 
         #[link(name = "user32")]
         extern "system" {
+            fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> isize;
             fn GetForegroundWindow() -> isize;
             fn GetWindowRect(hwnd: isize, lpRect: *mut RECT) -> i32;
             fn GetSystemMetrics(nIndex: i32) -> i32;
@@ -1101,62 +1130,89 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
         let mut last_win_pos = window.outer_position().unwrap_or_default();
         let mut last_win_size = window.outer_size().unwrap_or_default();
 
+        let mut last_heavy_check = std::time::Instant::now();
+        let mut should_hide_trigger = false;
+
+        let title_str = "Vibe Island Windows\0";
+        let title_u16: Vec<u16> = title_str.encode_utf16().collect();
+        let mut island_hwnd = unsafe { FindWindowW(std::ptr::null(), title_u16.as_ptr()) };
+        if island_hwnd == 0 {
+            let title_fallback = "Vibe Island\0";
+            let title_u16_fallback: Vec<u16> = title_fallback.encode_utf16().collect();
+            island_hwnd = unsafe { FindWindowW(std::ptr::null(), title_u16_fallback.as_ptr()) };
+        }
+
         loop {
-            std::thread::sleep(Duration::from_millis(250));
+            // Run loop every 30ms for instant hover click-through response
+            std::thread::sleep(Duration::from_millis(30));
 
-            let fg_hwnd = unsafe { GetForegroundWindow() };
-            if fg_hwnd == 0 {
-                continue;
-            }
+            // Heavy checks (fullscreen/maximized apps detection) run once per second
+            if last_heavy_check.elapsed() >= Duration::from_millis(1000) {
+                last_heavy_check = std::time::Instant::now();
 
-            // Update window position and size caches safely
-            if let Ok(pos) = window.outer_position() {
-                if pos.x != 0 || pos.y != 0 {
-                    last_win_pos = pos;
+                let fg_hwnd = unsafe { GetForegroundWindow() };
+                if fg_hwnd != 0 {
+                    // Update window position and size caches using direct Win32 GetWindowRect for 100% accuracy
+                    let mut win_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                    if island_hwnd != 0 && unsafe { GetWindowRect(island_hwnd, &mut win_rect) } != 0 {
+                        if win_rect.left != 0 || win_rect.top != 0 {
+                            last_win_pos.x = win_rect.left;
+                            last_win_pos.y = win_rect.top;
+                            last_win_size.width = (win_rect.right - win_rect.left) as u32;
+                            last_win_size.height = (win_rect.bottom - win_rect.top) as u32;
+                        }
+                    } else {
+                        // Fallback
+                        if let Ok(pos) = window.outer_position() {
+                            if pos.x != 0 || pos.y != 0 { last_win_pos = pos; }
+                        }
+                        if let Ok(size) = window.outer_size() {
+                            if size.width != 0 || size.height != 0 { last_win_size = size; }
+                        }
+                    }
+
+                    let shell_hwnd = unsafe { GetShellWindow() };
+                    if fg_hwnd == shell_hwnd {
+                        if is_hidden {
+                            let _ = window.show();
+                            is_hidden = false;
+                        }
+                        should_hide_trigger = false;
+                    } else {
+                        // Check if foreground window is Vibe Island by title
+                        let mut is_vibe_foreground = false;
+                        let mut title_buf = [0u16; 256];
+                        let len = unsafe { GetWindowTextW(fg_hwnd, title_buf.as_mut_ptr(), 256) };
+                        if len > 0 {
+                            let title = String::from_utf16_lossy(&title_buf[..len as usize]);
+                            if title == "Vibe Island Windows" || title == "Vibe Island" {
+                                is_vibe_foreground = true;
+                            }
+                        }
+
+                        if is_vibe_foreground {
+                            should_hide_trigger = false;
+                        } else {
+                            let screen_width = unsafe { GetSystemMetrics(0) }; // SM_CXSCREEN
+                            let screen_height = unsafe { GetSystemMetrics(1) }; // SM_CYSCREEN
+
+                            let is_maximized = unsafe { IsZoomed(fg_hwnd) } != 0;
+                            let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                            let has_rect = unsafe { GetWindowRect(fg_hwnd, &mut rect) } != 0;
+                            
+                            let is_fullscreen = has_rect && 
+                                rect.left <= 2 && 
+                                rect.top <= 2 && 
+                                (rect.right - rect.left).abs() >= screen_width - 5 && 
+                                (rect.bottom - rect.top).abs() >= screen_height - 5;
+
+                            should_hide_trigger = is_maximized || is_fullscreen;
+                        }
+                    }
                 }
             }
-            if let Ok(size) = window.outer_size() {
-                if size.width != 0 || size.height != 0 {
-                    last_win_size = size;
-                }
-            }
 
-            // Skip auto-hide if foreground is the desktop wallpaper shell
-            let shell_hwnd = unsafe { GetShellWindow() };
-            if fg_hwnd == shell_hwnd {
-                if is_hidden {
-                    let _ = window.show();
-                    is_hidden = false;
-                }
-                continue;
-            }
-
-            // Check if foreground window is Vibe Island by title
-            let mut title_buf = [0u16; 256];
-            let len = unsafe { GetWindowTextW(fg_hwnd, title_buf.as_mut_ptr(), 256) };
-            if len > 0 {
-                let title = String::from_utf16_lossy(&title_buf[..len as usize]);
-                if title == "Vibe Island Windows" || title == "Vibe Island" {
-                    continue;
-                }
-            }
-
-            let screen_width = unsafe { GetSystemMetrics(0) }; // SM_CXSCREEN
-            let screen_height = unsafe { GetSystemMetrics(1) }; // SM_CYSCREEN
-
-            let is_maximized = unsafe { IsZoomed(fg_hwnd) } != 0;
-            
-            let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-            let has_rect = unsafe { GetWindowRect(fg_hwnd, &mut rect) } != 0;
-            
-            let is_fullscreen = has_rect && 
-                rect.left <= 2 && 
-                rect.top <= 2 && 
-                (rect.right - rect.left).abs() >= screen_width - 5 && 
-                (rect.bottom - rect.top).abs() >= screen_height - 5;
-
-            let should_hide_trigger = is_maximized || is_fullscreen;
-
+            // Apply auto-hide status changes
             if should_hide_trigger {
                 let mut pt = POINT { x: 0, y: 0 };
                 unsafe { GetCursorPos(&mut pt) };
@@ -1192,7 +1248,7 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 }
             }
 
-            // ── CLICK-THROUGH OPTIMIZATION FOR COMPACT & EXPANDED ISLAND ──
+            // ── CLICK-THROUGH DETECTION (runs at 33fps for zero lag click recovery) ──
             if !is_hidden {
                 let mut pt = POINT { x: 0, y: 0 };
                 unsafe { GetCursorPos(&mut pt) };
@@ -1201,11 +1257,13 @@ fn start_fullscreen_auto_hide(window: tauri::WebviewWindow) {
                 let center_x = last_win_pos.x + (last_win_size.width as i32) / 2;
 
                 let active_width = ACTIVE_ISLAND_WIDTH.load(std::sync::atomic::Ordering::Relaxed) as f64;
-                let is_expanded = last_win_size.height > ((50.0 * scale_factor) as u32);
+                
+                // Compact mode height is 100 logical pixels. Height threshold 110 separates compact from expanded state.
+                let is_expanded = last_win_size.height > ((110.0 * scale_factor) as u32);
                 let active_height = if is_expanded {
                     last_win_size.height as f64
                 } else {
-                    (38.0 + 12.0) * scale_factor
+                    (46.0 + 12.0) * scale_factor // 58 physical pixels for compact state (adds spacing padding)
                 };
 
                 let is_lbutton_down = unsafe { GetAsyncKeyState(0x01) } < 0;
@@ -1486,6 +1544,7 @@ pub fn run() {
             save_look_todo,
             delete_look_todo,
             control_media,
+            seek_media,
             get_local_tasks,
             add_local_task,
             toggle_local_task,
