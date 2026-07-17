@@ -683,6 +683,14 @@ fn delete_local_task(id: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn update_local_task(id: String, name: String) -> Result<(), String> {
+    let conn = get_vibe_db_conn()?;
+    conn.execute("UPDATE local_tasks SET name = ?1 WHERE id = ?2", params![name, id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 struct TaskStats {
     week_completion_rate: f64,
@@ -1604,6 +1612,7 @@ pub fn run() {
             add_local_task,
             toggle_local_task,
             delete_local_task,
+            update_local_task,
             save_focus_session,
             get_focus_reports,
             get_local_task_stats,

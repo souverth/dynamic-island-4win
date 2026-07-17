@@ -232,19 +232,19 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
         const fillOpacity = isCharging ? '0.38' : isLow ? '0.9' : '0.55';
 
         return (
-          <div className="relative flex-shrink-0">
+          <div className="relative flex-shrink-0 w-[25px] h-[13px]">
             <svg
-              width="20" height="12" viewBox="0 0 22 13" fill="none"
+              width="25" height="13" viewBox="0 0 27 14" fill="none"
               className={isCharging ? 'battery-svg-charging' : ''}
             >
               {/* body */}
-              <rect x="0.5" y="0.5" width="18" height="12" rx="2.5"
+              <rect x="0.5" y="0.5" width="23" height="12" rx="2.5"
                 stroke={strokeColor} strokeWidth="1" fill="none" />
               {/* tip */}
-              <rect x="19" y="4" width="2.5" height="5" rx="1" fill={strokeColor} />
+              <rect x="24.5" y="4" width="2" height="5" rx="1" fill={strokeColor} />
               {/* fill level */}
               <rect x="2" y="2"
-                width={Math.round((battery.level / 100) * 15)}
+                width={Math.round((battery.level / 100) * 20)}
                 height="9" rx="1.5"
                 fill={fillColor}
                 opacity={fillOpacity}
@@ -252,17 +252,24 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
               />
             </svg>
 
-            {/* bolt — hiện khi sạc, fade nhẹ */}
-            {isCharging && (
-              <div
-                className="absolute inset-0 flex items-center justify-center battery-bolt-charging"
-                style={{ marginRight: '3px' }}
-              >
-                <svg width="6" height="9" viewBox="0 0 8 11" fill="none">
-                  <path d="M4.5 0L0 6.5H3.5L3 11L8 4H4.5Z" fill="white" fillOpacity="0.9" />
-                </svg>
-              </div>
-            )}
+            {/* Battery inner overlay for percentage */}
+            <div className="absolute left-0 top-0 w-[23px] h-[13px] flex items-center justify-center select-none">
+              {(() => {
+                const isDarkText = isCharging || battery.level >= 30;
+                const textColorClass = isDarkText ? 'text-[#09090b]' : 'text-white';
+                const textStyle = !isDarkText
+                  ? { textShadow: '0.6px 0.6px 0 #000, -0.6px 0.6px 0 #000, 0.6px -0.6px 0 #000, -0.6px -0.6px 0 #000, 0 0.8px 0.8px rgba(0,0,0,0.8)' }
+                  : undefined;
+                return (
+                  <span
+                    className={`text-[7.5px] font-black leading-none tracking-tighter ${textColorClass}`}
+                    style={textStyle}
+                  >
+                    {battery.level}
+                  </span>
+                );
+              })()}
+            </div>
           </div>
         );
       };

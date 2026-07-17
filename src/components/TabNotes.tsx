@@ -23,6 +23,8 @@ export const TabNotes: React.FC<TabNotesProps> = ({ onCountChange, language }) =
   const [todos, setTodos] = useState<LocalTask[]>([]);
   const [input, setInput] = useState('');
   const [showStats, setShowStats] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   const isTauri = !!(window as any).__TAURI__;
 
@@ -172,6 +174,30 @@ export const TabNotes: React.FC<TabNotesProps> = ({ onCountChange, language }) =
     }
   };
 
+  const handleRename = async (id: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      return;
+    }
+    if (isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('update_local_task', { id, name: trimmed });
+        fetchTodos();
+      } catch (err) {
+        console.error('Failed to rename local task:', err);
+      }
+    } else {
+      setTodos((prev) => {
+        const next = prev.map((t) => (t.id === id ? { ...t, name: trimmed } : t));
+        localStorage.setItem('local_tasks_mock', JSON.stringify(next));
+        return next;
+      });
+    }
+    setEditingId(null);
+  };
+
   const formatTime = (unixS: number | null) => {
     if (!unixS) return '';
     const date = new Date(unixS * 1000);
@@ -214,7 +240,9 @@ export const TabNotes: React.FC<TabNotesProps> = ({ onCountChange, language }) =
             <div
               key={todo.id}
               className={`group flex items-center justify-between px-3 py-2 rounded-md transition-all duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${
-                isDone
+                editingId === todo.id
+                  ? 'bg-white/[0.02] border border-success-color border-dashed'
+                  : isDone
                   ? 'bg-white/[0.01] border border-white/[0.02] hover:bg-white/[0.04] opacity-60'
                   : 'bg-white/[0.02] border border-white/[0.03] hover:bg-white/[0.06]'
               }`}
@@ -230,9 +258,33 @@ export const TabNotes: React.FC<TabNotesProps> = ({ onCountChange, language }) =
                     <Circle className="w-[18px] h-[18px] text-white/30 hover:text-success-color hover:border-success-color" />
                   )}
                 </button>
-                <span className={`text-[13px] truncate mr-2 ${isDone ? 'line-through text-text-secondary/60' : 'text-white/90'}`}>
-                  {todo.name}
-                </span>
+                {editingId === todo.id ? (
+                  <input
+                    type="text"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onBlur={() => handleRename(todo.id, editText)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRename(todo.id, editText);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    autoFocus
+                    className="flex-grow bg-transparent border-none text-[13px] outline-none text-white w-full min-w-0 p-0"
+                  />
+                ) : (
+                  <span
+                    className={`text-[13px] truncate mr-2 cursor-pointer select-none ${isDone ? 'line-through text-text-secondary/60' : 'text-white/90 hover:text-white'}`}
+                    onDoubleClick={() => {
+                      if (!isDone) {
+                        setEditingId(todo.id);
+                        setEditText(todo.name);
+                      }
+                    }}
+                    title={isDone ? undefined : "Double-click to edit"}
+                  >
+                    {todo.name}
+                  </span>
+                )}
                 {/* Rollover Badge */}
                 {!isDone && todo.rollover_count > 0 && (
                   <span className={`text-[9.5px] px-1.5 py-0.5 rounded font-black font-mono tracking-wider flex-shrink-0 ${
