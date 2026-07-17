@@ -12,10 +12,9 @@ Designed with **strict flat gray/white aesthetics, micro-animations, and custom 
 
 ## ✨ Features
 
-- **Windows Notification Hub (TabNotifications)**: Intercepts native Windows toast notifications (Notepad, Chrome, Zalo, Messenger, etc.) with a dedicated glassmorphic dashboard. Features sound controls, clean card filters (Unread / All history), and a compact status indicator badge next to the system clock.
+- **Windows Notification Hub (TabNotifications)**: Intercepts native Windows toast notifications (Notepad, Chrome, Zalo, Messenger, etc.) with a dedicated glassmorphic dashboard. Features sound controls, clean card filters (Unread / All history), a compact status indicator badge, and **rich image preview rendering** (such as Snipping Tool screenshots) with dynamic island co-resizing.
 - **Win32 Native Window Focus & Activation**: Integrates direct Rust-to-Win32 API bindings (`EnumWindows`, `AttachThreadInput`, `ShowWindow`, `SetForegroundWindow`) in the backend event loop to bypass Windows Focus Stealing Prevention security restrictions in 0ms, allowing users to click a notification card and bring the respective app straight to the foreground.
-- **Media Center (TabMusic)**: Syncs with Windows Global System Media Transport Controls (GSMTC) to display album covers, track progress, real-time audio visualizer waves, and media controls (Play/Pause, Next, Previous).
-- **Hardware Monitor (TabHardware)**: Real-time system diagnostics (OS, CPU, Memory RAM, Storage C: Space, Disk Health, Battery wear level, cycles, and charging diagnostics) featuring an ultra-slim custom SVG system-spec scanner.
+- **Media Center (TabMusic)**: Syncs with Windows Global System Media Transport Controls (GSMTC) to display album covers, track progress, real-time audio visualizer waves, media controls, and **interactive timeline seeking/scrubbing** with micro-animations.
 - **⏱Pomodoro Tracker (TabPomo)**: A distraction-free Focus/Rest session tracker.
 - **Task Stash (TabNotes)**: A quick task todo checklist pinned to the desktop widget.
 - **Drop Stash (TabDrop)**: Drag and drop files from Windows Explorer onto the island to store them in a quick-access workspace folder.
@@ -29,7 +28,7 @@ Designed with **strict flat gray/white aesthetics, micro-animations, and custom 
 - **Backend**: Rust (Tauri v2)
   - Native Windows OS interaction using the `windows` crate (WinRT APIs).
   - Background loop listeners for GSMTC Media, Bluetooth, and User Notification API (`UserNotificationListener`).
-  - Transparent click-through overlay mapping based on mouse position.
+  - Transparent click-through overlay mapping based on mouse position (optimized with a **dual-timing 30ms click-recovery thread loop** and direct Win32 API window positioning).
 - **Frontend**: React (Vite + TypeScript + Vanilla TailwindCSS)
 - **State & Sync**: Custom React hooks (`useMedia`, `useBattery`, `useSettings`) listening to backend Tauri events.
 

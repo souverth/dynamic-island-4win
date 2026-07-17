@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-17
+
+### Added
+- **Rich Toast Notification Images**: Integrated system-wide notification image extraction using WinRT `ToastNotification` XML parsing. Local screenshot assets and media files (e.g. Snipping Tool screenshots) are dynamically parsed and converted via Tauri v2's local asset protocol.
+- **Dynamic Image Toast Resizing**: Designed automatic island notch expansion from standard compact sizes (`240x46px`) to media-friendly dimensions (`310x75px`) to display rich image preview layouts on the right.
+- **Image Thumbnails in History**: Added a neat `50x34px` card thumbnail to the expanded notification feed for history records containing images.
+- **Interactive Music Seek/Scrub**: Added support for scrubbing and seeking on the music progress bar. Click coordinates on the timeline are translated to millisecond targets and dispatched to the WinRT GSMTC interface.
+- **Interactive Timeline Animations**: Created smooth transitions where the music progress bar grows from 3px to 4px and shines on hover to indicate interactive click scrubbing.
+- **Dual-Timing Click-Through Thread**: Separated the Rust backend's tick timer. Click-through coordinate hit-testing is run on a fast `30ms` loop for instant click recovery (zero lag), while heavy window checks run on a `1000ms` interval to conserve CPU.
+- **Native Positional Queries**: Replaced async IPC queries for position (`outer_position()`) with synchronous native Win32 `FindWindowW` and `GetWindowRect` calls to prevent DPI drift and position cache errors.
+
+### Fixed
+- **Snipping Tool Image Extraction**: Fixed a bug where ms-appx/ms-appdata UWP package icon schemes were extracted instead of the actual screenshot file path by filtering out packaged URI schemes.
+- **Hover Music Title Limit**: Fixed a css class width clamp (`max-w-[125px]`) that cut off long song titles with `...` even when hovered. Titles now expand up to `480px`.
+- **Intermittent Island Click Lockout**: Solved a click lockout bug where the island occasionally became click-through due to late focus blur state synchronization by accelerating the click detection loop.
+
 ## [0.2.0] - 2026-07-17
 
 ### Added
