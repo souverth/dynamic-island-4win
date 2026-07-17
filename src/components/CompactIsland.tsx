@@ -85,7 +85,7 @@ export const CompactIsland: React.FC<CompactIslandProps> = ({
           {/* Phía giữa: Tên bài hát (chỉ hiển thị khi hover) | Middle: Song Title (only visible when hovered) */}
           {isHovered && track.title && track.title !== 'Ready' && (
             <div className="flex flex-col justify-center min-w-0 mx-2 select-none flex-grow text-left animate-content-reveal">
-              <span className="text-[10px] font-semibold text-white truncate max-w-[125px]" title={track.title}>
+              <span className="text-[10px] font-semibold text-white truncate max-w-[480px]" title={track.title}>
                 {track.title}
               </span>
             </div>
