@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2, Volume2, VolumeX, Check, Inbox } from 'lucide-react';
 import { getTranslation, Language } from '../utils/i18n';
-import { getAppIcon } from '../utils/appIcons';
 
 export interface StoredNotification {
   id: string;

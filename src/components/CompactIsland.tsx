@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Music, Timer, ListTodo, Inbox, Download, Bell } from 'lucide-react';
+import { Music, Timer, ListTodo, Inbox, Download, Bell } from 'lucide-react';
 import { BatteryState } from '../hooks/useBattery';
 import { Track } from '../hooks/useMedia';
 import { getAppIcon } from '../utils/appIcons';
@@ -20,7 +20,7 @@ interface CompactIslandProps {
   isNotif?: boolean;
   btDeviceName?: string;
   btStatus?: 'connected' | 'disconnected';
-  systemNotif?: { appName: string; title: string; message: string } | null;
+  systemNotif?: { appName: string; title: string; message: string; imagePath?: string } | null;
   unreadNotifsCount?: number;
   onNotificationIconClick?: () => void;
 }
